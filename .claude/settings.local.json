@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun --version)",
+      "Bash(hardhat --version)",
+      "Bash(bunx hardhat:*)",
+      "Bash(bun install:*)",
+      "Bash(bun run:*)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(kill %1)",
+      "Bash(bun add:*)",
+      "Bash(bun pm:*)",
+      "Bash(xargs cat:*)",
+      "Bash(curl -s -X POST http://127.0.0.1:8545 -H \"Content-Type: application/json\" -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}')",
+      "Bash(USE_LOCALHOST=true RPC_URL=http://127.0.0.1:8545 bun run src/index.ts)",
+      "Bash(bun -e \"console.log\\('KEY:', process.env.ANTHROPIC_API_KEY ? 'SET \\(' + process.env.ANTHROPIC_API_KEY.slice\\(0,15\\) + '...\\)' : 'NOT SET'\\)\")",
+      "Bash(taskkill //F //IM bun.exe)",
+      "Bash(taskkill //F //IM bunx.exe)",
+      "Bash(taskkill //F //IM node.exe)"
+    ]
+  }
+}

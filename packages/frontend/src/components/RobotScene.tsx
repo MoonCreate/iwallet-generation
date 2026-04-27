@@ -1,8 +1,8 @@
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Environment, ContactShadows, PerspectiveCamera, Float, Center } from '@react-three/drei'
+import { OrbitControls, PerspectiveCamera, Center, AdaptiveDpr } from '@react-three/drei'
 import { Suspense, useState } from 'react'
 import { RobotBody } from './RobotBody'
-import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing'
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
 export function RobotScene() {
   const [animation, setAnimation] = useState<any>('SK_Huggy_RobotNew.ao|A_Huggy_Idle')
@@ -16,8 +16,17 @@ export function RobotScene() {
   ]
 
   return (
-    <div className="relative w-full h-full bg-[#02130f]"> {/* Dark Midori/Evergreen base */}
-      <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: false }}>
+    <div className="relative w-full h-full bg-[#02130f]">
+      <Canvas
+        dpr={1}
+        gl={{
+          antialias: false,
+          powerPreference: 'high-performance',
+        }}
+      >
+        {/* Auto-adapt DPR based on device performance */}
+        <AdaptiveDpr pixelated />
+
         {/* User's choice camera position */}
         <PerspectiveCamera makeDefault position={[0, 0, 1]} fov={10} />
         <OrbitControls
@@ -30,11 +39,10 @@ export function RobotScene() {
         />
 
         <color attach="background" args={['#02130f']} />
-        <fog attach="fog" args={['#02130f', 5, 20]} />
+        <fog attach="fog" args={['#02130f', 3, 12]} />
 
         <Suspense fallback={null}>
-          <Environment preset="forest" />
-          <ambientLight intensity={0.2} />
+          <ambientLight intensity={0.3} />
 
           {/* Main Key Light */}
           <spotLight
@@ -42,9 +50,7 @@ export function RobotScene() {
             angle={0.15}
             penumbra={1}
             intensity={4}
-            castShadow
             color="#a7f3d0"
-            shadow-mapSize={[1024, 1024]}
           />
 
           {/* Rim Light for silhouette */}
@@ -53,36 +59,24 @@ export function RobotScene() {
           {/* Fill Light */}
           <pointLight position={[5, -2, 5]} intensity={2} color="#34d399" />
 
-          <Float speed={1.2} rotationIntensity={0.1} floatIntensity={0.2}>
-            {/* Center the entire model physically at 0,0,0 */}
-            <Center>
-              <RobotBody
-                animation={animation}
-                scale={1}
-                position={[0, 0, 0]}
-              />
-            </Center>
-          </Float>
+          <Center>
+            <RobotBody
+              animation={animation}
+              scale={1}
+              position={[0, 0, 0]}
+            />
+          </Center>
 
-          {/* Moved shadow slightly down to be under the centered model */}
-          <ContactShadows
-            opacity={0.6}
-            scale={10}
-            blur={2}
-            far={4.5}
-            resolution={512}
-            color="#000000"
-            position={[0, -3.5, 0]}
-          />
-
-          <EffectComposer>
-            <Bloom luminanceThreshold={1} mipmapBlur intensity={0.8} radius={1.2} />
-            <Noise opacity={0.03} />
-            <Vignette eskil={false} offset={0.05} darkness={1.2} />
+          {/* Selective Bloom - Only things with intensity > 1 will glow */}
+          <EffectComposer enableNormalPass={false}>
+            <Bloom
+              luminanceThreshold={1}
+              mipmapBlur
+              intensity={1.5}
+              radius={0.4}
+            />
           </EffectComposer>
         </Suspense>
-
-
       </Canvas>
 
       {/* UI Overlay */}

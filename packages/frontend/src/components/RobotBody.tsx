@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import React, { useEffect, useRef, useMemo } from 'react'
 import { useGraph } from '@react-three/fiber'
-import { useGLTF, useAnimations } from '@react-three/drei'
+import { useGLTF, useAnimations, useTexture } from '@react-three/drei'
 import { SkeletonUtils } from 'three-stdlib'
 import type { GLTF } from 'three-stdlib'
 
@@ -71,15 +71,46 @@ export function RobotBody({ animation = 'SK_Huggy_RobotNew.ao|A_Huggy_Idle', ...
   const group = useRef<THREE.Group>(null)
   const { scene, animations } = useGLTF('/robot.glb')
   const clone = useMemo(() => SkeletonUtils.clone(scene), [scene])
-  const { nodes, materials } = useGraph(clone) as unknown as GLTFResult
+  const { nodes } = useGraph(clone) as unknown as GLTFResult
   const { actions } = useAnimations(animations, group)
 
-  useEffect(() => {
-    if (actions[animation]) {
-      actions[animation].reset().fadeIn(0.5).play()
-      return () => {
-        actions[animation]?.fadeOut(0.5)
+  // Load textures for a premium PBR look
+  const [
+    lowerMap, lowerNormal, lowerRough,
+    upperMap, upperNormal, upperRough,
+    eyeMap
+  ] = useTexture([
+    '/textures/gltf_embedded_0.png',
+    '/textures/gltf_embedded_1.png',
+    '/textures/gltf_embedded_1@channels=B.png',
+    '/textures/gltf_embedded_3.png',
+    '/textures/gltf_embedded_4.png',
+    '/textures/gltf_embedded_4@channels=B.png',
+    '/textures/gltf_embedded_6.png',
+  ])
+
+  // Fix orientations and color spaces
+  const allTextures = [lowerMap, lowerNormal, lowerRough, upperMap, upperNormal, upperRough, eyeMap]
+  allTextures.forEach(tex => {
+    if (tex) {
+      tex.flipY = false
+      if (tex === lowerMap || tex === upperMap || tex === eyeMap) {
+        tex.colorSpace = THREE.SRGBColorSpace
       }
+    }
+  })
+
+  useEffect(() => {
+    console.log('Available animations in model:', Object.keys(actions))
+    const currentAction = actions[animation]
+
+    if (currentAction) {
+      currentAction.reset().fadeIn(0.5).play()
+      return () => {
+        currentAction.fadeOut(0.5)
+      }
+    } else {
+      console.warn(`Animation "${animation}" not found!`)
     }
   }, [actions, animation])
 
@@ -90,33 +121,53 @@ export function RobotBody({ animation = 'SK_Huggy_RobotNew.ao|A_Huggy_Idle', ...
         <skinnedMesh
           name="Object_103"
           geometry={nodes.Object_103.geometry}
-          material={materials.MI_RobotHuggyLower}
           skeleton={nodes.Object_103.skeleton}
           rotation={[-Math.PI / 2, 0, 0]}
           castShadow
           receiveShadow
-        />
+        >
+          <meshStandardMaterial
+            map={lowerMap}
+            normalMap={lowerNormal}
+            roughnessMap={lowerRough}
+            metalness={0.4}
+          />
+        </skinnedMesh>
         <skinnedMesh
           name="Object_104"
           geometry={nodes.Object_104.geometry}
-          material={materials.MI_RobotHuggyUpper}
           skeleton={nodes.Object_104.skeleton}
           rotation={[-Math.PI / 2, 0, 0]}
           castShadow
           receiveShadow
-        />
+        >
+          <meshStandardMaterial
+            map={upperMap}
+            normalMap={upperNormal}
+            roughnessMap={upperRough}
+            metalness={0.4}
+          />
+        </skinnedMesh>
         <skinnedMesh
           name="Object_105"
           geometry={nodes.Object_105.geometry}
-          material={materials.MI_RobotHuggyEye}
           skeleton={nodes.Object_105.skeleton}
           rotation={[-Math.PI / 2, 0, 0]}
           castShadow
           receiveShadow
-        />
+        >
+          <meshStandardMaterial
+            map={eyeMap}
+            emissive="#ff0000"
+            emissiveMap={eyeMap}
+            emissiveIntensity={10}
+          />
+        </skinnedMesh>
       </group>
     </group>
   )
 }
 
-useGLTF.preload('/robot.glb')
+// NOTE: Do NOT use useGLTF.preload() at module scope.
+// This project uses TanStack Start with SSR, and module-level side effects
+// will execute in Node.js where fetch/WebGL APIs don't exist, causing hangs.

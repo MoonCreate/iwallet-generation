@@ -44,8 +44,25 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
     ],
   }),
+  notFoundComponent: () => (
+    <div className="flex h-screen w-full items-center justify-center p-4">
+      <div className="island-shell w-full max-w-sm rounded-[2rem] p-8 text-center shadow-xl">
+        <h1 className="display-title mb-4 text-4xl font-bold text-[var(--sea-ink)]">
+          404
+        </h1>
+        <p className="island-kicker mb-6">Page Not Found</p>
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
+        >
+          Return Home
+        </a>
+      </div>
+    </div>
+  ),
   shellComponent: RootDocument,
 });
+
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (

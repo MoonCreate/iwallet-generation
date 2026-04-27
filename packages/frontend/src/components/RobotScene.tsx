@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Environment, ContactShadows, PerspectiveCamera, Float } from '@react-three/drei'
+import { OrbitControls, Environment, ContactShadows, PerspectiveCamera, Float, Center } from '@react-three/drei'
 import { Suspense, useState } from 'react'
 import { RobotBody } from './RobotBody'
 import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing'
@@ -18,16 +18,25 @@ export function RobotScene() {
   return (
     <div className="relative w-full h-full bg-[#02130f]"> {/* Dark Midori/Evergreen base */}
       <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: false }}>
-        <PerspectiveCamera makeDefault position={[0, 2, 8]} fov={35} />
-        
+        {/* User's choice camera position */}
+        <PerspectiveCamera makeDefault position={[0, 0, 1]} fov={10} />
+        <OrbitControls
+          enablePan={false}
+          enableRotate={false}
+          enableZoom={false}
+          target={[0, 0.4, 0]}
+          autoRotate
+          autoRotateSpeed={0.1}
+        />
+
         <color attach="background" args={['#02130f']} />
-        <fog attach="fog" args={['#02130f', 5, 15]} />
+        <fog attach="fog" args={['#02130f', 5, 20]} />
 
         <Suspense fallback={null}>
           <Environment preset="forest" />
           <ambientLight intensity={0.2} />
-          
-          {/* Main Key Light - Tealish/Midori */}
+
+          {/* Main Key Light */}
           <spotLight
             position={[10, 10, 10]}
             angle={0.15}
@@ -37,21 +46,25 @@ export function RobotScene() {
             color="#a7f3d0"
             shadow-mapSize={[1024, 1024]}
           />
-          
+
           {/* Rim Light for silhouette */}
           <pointLight position={[-10, 2, -5]} intensity={10} color="#059669" />
-          
+
           {/* Fill Light */}
           <pointLight position={[5, -2, 5]} intensity={2} color="#34d399" />
 
           <Float speed={1.2} rotationIntensity={0.1} floatIntensity={0.2}>
-            <RobotBody 
-              animation={animation} 
-              scale={0.02} 
-              position={[0, -2.5, 0]} 
-            />
+            {/* Center the entire model physically at 0,0,0 */}
+            <Center>
+              <RobotBody
+                animation={animation}
+                scale={1}
+                position={[0, 0, 0]}
+              />
+            </Center>
           </Float>
 
+          {/* Moved shadow slightly down to be under the centered model */}
           <ContactShadows
             opacity={0.6}
             scale={10}
@@ -59,6 +72,7 @@ export function RobotScene() {
             far={4.5}
             resolution={512}
             color="#000000"
+            position={[0, -3.5, 0]}
           />
 
           <EffectComposer>
@@ -68,14 +82,7 @@ export function RobotScene() {
           </EffectComposer>
         </Suspense>
 
-        <OrbitControls 
-          enablePan={false} 
-          minDistance={5} 
-          maxDistance={15} 
-          target={[0, 0, 0]}
-          autoRotate
-          autoRotateSpeed={0.3}
-        />
+
       </Canvas>
 
       {/* UI Overlay */}
@@ -84,11 +91,10 @@ export function RobotScene() {
           <button
             key={anim.val}
             onClick={() => setAnimation(anim.val)}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-[0.2em] uppercase transition-all duration-500 ${
-              animation === anim.val
-                ? 'bg-[#10b981] text-[#02130f] shadow-[0_0_25px_rgba(16,185,129,0.45)] scale-105 border-transparent'
-                : 'bg-white/5 text-emerald-400/60 hover:text-emerald-300 hover:bg-white/10 backdrop-blur-xl border border-emerald-500/20'
-            }`}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-[0.2em] uppercase transition-all duration-500 ${animation === anim.val
+              ? 'bg-[#10b981] text-[#02130f] shadow-[0_0_25px_rgba(16,185,129,0.45)] scale-105 border-transparent'
+              : 'bg-white/5 text-emerald-400/60 hover:text-emerald-300 hover:bg-white/10 backdrop-blur-xl border border-emerald-500/20'
+              }`}
           >
             {anim.label}
           </button>
@@ -100,7 +106,7 @@ export function RobotScene() {
           <div className="w-8 h-[1px] bg-emerald-500/50" />
           <span className="text-[10px] tracking-[0.5em] font-black text-emerald-500/80 uppercase">Sentinel Project</span>
         </div>
-        <h1 className="text-5xl font-black tracking-tighter opacity-90 leading-tight">ROBOT<br/>HUGGY</h1>
+        <h1 className="text-5xl font-black tracking-tighter opacity-90 leading-tight">ROBOT<br />HUGGY</h1>
         <div className="mt-4 px-3 py-1 bg-emerald-950/50 border border-emerald-500/30 rounded inline-block">
           <p className="text-[#10b981] font-mono tracking-widest text-[10px]">STATUS: {animation.split('|')[1].replace('A_Huggy_', '').toUpperCase()}</p>
         </div>

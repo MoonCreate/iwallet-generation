@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RobotRouteImport } from './routes/robot'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as ConfigureRouteImport } from './routes/configure'
 import { Route as AgentRouteImport } from './routes/agent'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RobotRoute = RobotRouteImport.update({
+  id: '/robot',
+  path: '/robot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/configure': typeof ConfigureRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
+  '/robot': typeof RobotRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/configure': typeof ConfigureRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
+  '/robot': typeof RobotRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,21 @@ export interface FileRoutesById {
   '/configure': typeof ConfigureRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
+  '/robot': typeof RobotRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/agent' | '/configure' | '/create' | '/dashboard'
+  fullPaths: '/' | '/agent' | '/configure' | '/create' | '/dashboard' | '/robot'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agent' | '/configure' | '/create' | '/dashboard'
-  id: '__root__' | '/' | '/agent' | '/configure' | '/create' | '/dashboard'
+  to: '/' | '/agent' | '/configure' | '/create' | '/dashboard' | '/robot'
+  id:
+    | '__root__'
+    | '/'
+    | '/agent'
+    | '/configure'
+    | '/create'
+    | '/dashboard'
+    | '/robot'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,10 +93,18 @@ export interface RootRouteChildren {
   ConfigureRoute: typeof ConfigureRoute
   CreateRoute: typeof CreateRoute
   DashboardRoute: typeof DashboardRoute
+  RobotRoute: typeof RobotRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/robot': {
+      id: '/robot'
+      path: '/robot'
+      fullPath: '/robot'
+      preLoaderRoute: typeof RobotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -125,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfigureRoute: ConfigureRoute,
   CreateRoute: CreateRoute,
   DashboardRoute: DashboardRoute,
+  RobotRoute: RobotRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

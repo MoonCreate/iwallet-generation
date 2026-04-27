@@ -28,14 +28,12 @@ export function RobotScene() {
         <AdaptiveDpr pixelated />
 
         {/* User's choice camera position */}
-        <PerspectiveCamera makeDefault position={[0, 0, 1]} fov={10} />
+        <PerspectiveCamera makeDefault position={[0.01, 0, 1]} fov={10} />
         <OrbitControls
           enablePan={false}
           enableRotate={false}
           enableZoom={false}
           target={[0, 0.4, 0]}
-          autoRotate
-          autoRotateSpeed={0.1}
         />
 
         <color attach="background" args={['#02130f']} />

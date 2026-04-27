@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import React, { useEffect, useRef } from 'react'
 import { useGLTF, useAnimations, useTexture } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import type { GLTF } from 'three-stdlib'
 
 type ActionName =
@@ -47,6 +48,14 @@ export function RobotBody({ animation = 'SK_Huggy_RobotNew.ao|A_Huggy_Idle', ...
     eyeMap.flipY = false
     eyeMap.colorSpace = THREE.SRGBColorSpace
   }
+
+  // Prevents the robot from drifting (Root Motion fix)
+  useFrame(() => {
+    if (nodes._rootJoint) {
+      nodes._rootJoint.position.x = 0
+      nodes._rootJoint.position.z = 0
+    }
+  })
 
   useEffect(() => {
     const currentAction = actions[animation]

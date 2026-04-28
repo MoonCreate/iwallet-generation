@@ -169,7 +169,7 @@ export function RobotScene() {
 
       {/* Scrollable Text Sections - ALL fixed at same viewport position */}
       <div className="fixed inset-0 z-20 pointer-events-none">
-        {/* Text 1: HUGGY PROTOCOL */}
+        {/* Text 1: HUGGY PROTOCOL - AI Agent Wallet Introduction */}
         <div
           className="absolute inset-0 flex items-center justify-end px-20"
           style={{
@@ -179,15 +179,15 @@ export function RobotScene() {
           }}
         >
           <div className="max-w-md text-right">
-            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// PROTOCOL_INITIALIZED</p>
+            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// POLICY_ENFORCED_WALLET</p>
             <h2 className="text-5xl font-black text-emerald-100 mb-4 leading-tight">HUGGY<br /><span className="text-[#10b981]">PROTOCOL</span></h2>
             <p className="text-emerald-300/70 text-sm leading-relaxed">
-              Advanced autonomous unit designed for secure digital asset management with neural-network driven decision making.
+              An AI agent wallet that executes within defined policy boundaries. The agent acts, but never exceeds — protecting your assets even under adversarial conditions.
             </p>
           </div>
         </div>
 
-        {/* Text 2: UNIT MOBILITY */}
+        {/* Text 2: POLICY ENFORCEMENT - Security Features */}
         <div
           className="absolute inset-0 flex items-center justify-end px-20"
           style={{
@@ -197,15 +197,15 @@ export function RobotScene() {
           }}
         >
           <div className="max-w-md text-right">
-            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// DANCE_PROTOCOL_ACTIVE</p>
-            <h2 className="text-5xl font-black text-emerald-100 mb-4 leading-tight">UNIT<br /><span className="text-[#10b981]">MOBILITY</span></h2>
+            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// SECURITY_LAYER</p>
+            <h2 className="text-5xl font-black text-emerald-100 mb-4 leading-tight">POLICY<br /><span className="text-[#10b981]">ENFORCEMENT</span></h2>
             <p className="text-emerald-300/70 text-sm leading-relaxed">
-              Fluid motion capture enabled. Unit demonstrates enhanced kinematic capabilities through Bedrock-compatible dance algorithms.
+              Daily spend limits. Allowed contract whitelists. Cooldown periods. Even if an AI agent is compromised or manipulated, your funds remain protected by on-chain rules no one can bypass.
             </p>
           </div>
         </div>
 
-        {/* Text 3: THREAT RESPONSE */}
+        {/* Text 3: THREAT SHIELD - Guardian Active */}
         <div
           className="absolute inset-0 flex items-center justify-end px-20"
           style={{
@@ -215,10 +215,10 @@ export function RobotScene() {
           }}
         >
           <div className="max-w-md text-right">
-            <p className="text-red-400/80 font-mono text-xs tracking-[0.3em] mb-4">// COMBAT_READY</p>
-            <h2 className="text-5xl font-black text-red-400 mb-4 leading-tight">THREAT<br /><span className="text-red-500">RESPONSE</span></h2>
+            <p className="text-red-400/80 font-mono text-xs tracking-[0.3em] mb-4">// GUARDIAN_ACTIVE</p>
+            <h2 className="text-5xl font-black text-red-400 mb-4 leading-tight">THREAT<br /><span className="text-red-500">SHIELD</span></h2>
             <p className="text-red-300/70 text-sm leading-relaxed">
-              Attack vector analysis complete. All defensive protocols armed. Intrusion detected = immediate neutralization.
+              Unauthorized access attempts, policy violations, and anomalous behaviors are blocked at the contract level. Your guardian never sleeps.
             </p>
           </div>
         </div>

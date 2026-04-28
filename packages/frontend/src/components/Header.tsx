@@ -49,7 +49,15 @@ export default function Header() {
           >
             Agent
           </Link>
+          <Link
+            to="/robot"
+            className="nav-link"
+            activeProps={{ className: "nav-link is-active" }}
+          >
+            Robot
+          </Link>
         </div>
+
       </nav>
     </header>
   );

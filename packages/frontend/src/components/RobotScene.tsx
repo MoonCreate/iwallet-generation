@@ -124,6 +124,12 @@ export function RobotScene() {
       ? (scrollProgress - 0.66) / 0.19  // fade in from below
       : 1  // fully visible
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+
+  // Adjust camera for mobile - closer position so robot fills frame (head visible)
+  const cameraPosition = isMobile ? [-0.05, 0.1, 0.8] : [0.01, 0, 1]
+  const cameraFov = isMobile ? 17 : 10
+
   return (
     <div ref={containerRef} className="relative" style={{ height: '500vh' }}>
       {/* Sticky 3D Canvas - stays visible while scrolling */}
@@ -137,8 +143,8 @@ export function RobotScene() {
         >
           <AdaptiveDpr pixelated />
 
-          <PerspectiveCamera makeDefault position={[0.01, 0, 1]} fov={10} />
-          <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} target={[0, 0.4, 0]} />
+          <PerspectiveCamera makeDefault position={cameraPosition as any} fov={cameraFov} />
+          <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} target={[0, isMobile ? 0.4 : 0.4, 0]} />
 
           <color attach="background" args={['#02130f']} />
           <fog attach="fog" args={['#02130f', 3, 12]} />
@@ -181,7 +187,7 @@ export function RobotScene() {
       >
         {/* Text 1 */}
         <div
-          className="absolute inset-0 flex items-center justify-end px-20"
+          className="absolute inset-0 flex items-center justify-end px-6 md:px-20"
           style={{
             opacity: text1Progress,
             transform: `translateY(${text1Progress * 80 - 80}px)`,
@@ -189,10 +195,10 @@ export function RobotScene() {
             top: '10%'
           }}
         >
-          <div className="max-w-md text-right">
-            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// VULNERABILITY_DETECTED</p>
-            <h2 className="text-5xl font-black text-emerald-100 mb-4 leading-tight">WHAT IF<br /><span className="text-[#10b981]">THE AI GOES ROGUE?</span></h2>
-            <p className="text-emerald-300/70 text-sm leading-relaxed">
+          <div className="max-w-[90%] md:max-w-md text-right">
+            <p className="text-emerald-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// VULNERABILITY_DETECTED</p>
+            <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-emerald-100 mb-1 md:mb-4 leading-tight">WHAT IF<br /><span className="text-[#10b981]">THE AI GOES ROGUE?</span></h2>
+            <p className="text-emerald-300/70 text-[10px] sm:text-xs md:text-sm leading-relaxed">
               A hallucinating AI agent can drain your entire wallet in seconds. Without policy rules, there's nothing stopping it — no daily limits, no contract restrictions, no human override.
             </p>
           </div>
@@ -200,7 +206,7 @@ export function RobotScene() {
 
         {/* Text 2 */}
         <div
-          className="absolute inset-0 flex items-center justify-end px-20"
+          className="absolute inset-0 flex items-center justify-end px-6 md:px-20"
           style={{
             opacity: text2Progress,
             transform: `translateY(${text2Progress * 80 - 80}px)`,
@@ -208,10 +214,10 @@ export function RobotScene() {
             top: '35%'
           }}
         >
-          <div className="max-w-md text-right">
-            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// PROTECTION_ACTIVATED</p>
-            <h2 className="text-5xl font-black text-emerald-100 mb-4 leading-tight">THIS IS<br /><span className="text-[#10b981]">WHERE I STEP IN</span></h2>
-            <p className="text-emerald-300/70 text-sm leading-relaxed">
+          <div className="max-w-[90%] md:max-w-md text-right">
+            <p className="text-emerald-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// PROTECTION_ACTIVATED</p>
+            <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-emerald-100 mb-1 md:mb-4 leading-tight">THIS IS<br /><span className="text-[#10b981]">WHERE I STEP IN</span></h2>
+            <p className="text-emerald-300/70 text-[10px] sm:text-xs md:text-sm leading-relaxed">
               Policy-enforced smart wallet. Daily limits, contract whitelists, cooldowns. Even a compromised AI agent can only act within boundaries. Your funds stay yours.
             </p>
           </div>
@@ -219,7 +225,7 @@ export function RobotScene() {
 
         {/* Text 3 */}
         <div
-          className="absolute inset-0 flex items-center justify-end px-20"
+          className="absolute inset-0 flex items-center justify-end px-6 md:px-20"
           style={{
             opacity: text3Progress,
             transform: `translateY(${text3Progress * 80 - 80}px)`,
@@ -227,10 +233,10 @@ export function RobotScene() {
             top: '60%'
           }}
         >
-          <div className="max-w-md text-right">
-            <p className="text-red-400/80 font-mono text-xs tracking-[0.3em] mb-4">// COMBAT_STANCE</p>
-            <h2 className="text-5xl font-black text-red-400 mb-4 leading-tight">TRY ME.<br /><span className="text-red-500">I DARE YOU.</span></h2>
-            <p className="text-red-300/70 text-sm leading-relaxed">
+          <div className="max-w-[90%] md:max-w-md text-right">
+            <p className="text-red-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// COMBAT_STANCE</p>
+            <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-red-400 mb-1 md:mb-4 leading-tight">TRY ME.<br /><span className="text-red-500">I DARE YOU.</span></h2>
+            <p className="text-red-300/70 text-[10px] sm:text-xs md:text-sm leading-relaxed">
               Policy violators get blocked. Unauthorized actors get locked out. And anyone who tries to exploit? They face the wall.
             </p>
           </div>

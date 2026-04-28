@@ -54,111 +54,175 @@ function LightController({ intensity }: { intensity: number }) {
 
 export function RobotScene() {
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Scroll progress (0 → 1 mapped to scroll position)
+  const [scrollProgress, setScrollProgress] = useState(0)
+
+  // Animation stages based on scroll progress
+  // Stage 0: progress 0 → 0.33 = Idle
+  // Stage 1: progress 0.33 → 0.66 = Dance
+  // Stage 2: progress 0.66 → 1 = Attack
+  const currentAnimation =
+    scrollProgress < 0.33 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
+      : scrollProgress < 0.66 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Dance_Bedrock'
+        : 'SK_Huggy_RobotNew.ao|A_Huggy_Attack'
+
   const animationRef = useRef<string>('SK_Huggy_RobotNew.ao|A_Huggy_Idle')
 
-  // Animation state driven by RAF
-  const [atmosphereProgress, setAtmosphereProgress] = useState(0)
-  const [bloomIntensity, setBloomIntensity] = useState(4)
-  const [bloomRadius, setBloomRadius] = useState(0.2)
-  const [floatSpeed, setFloatSpeed] = useState(0.5)
-  const [lightIntensity, setLightIntensity] = useState(0)
-
   useEffect(() => {
-    let startTime: number
-    let rafId: number
+    animationRef.current = currentAnimation
+  }, [currentAnimation])
 
-    const animate = (timestamp: number) => {
-      if (!startTime) startTime = timestamp
-      const elapsed = (timestamp - startTime) / 1000
-
-      let targetProgress: number
-      let targetBloomIntensity: number
-      let targetBloomRadius: number
-      let targetFloatSpeed: number
-      let targetLightIntensity: number
-      let newAnimation: string
-
-      if (elapsed < 2.5) {
-        targetProgress = 0.02
-        targetBloomIntensity = 4
-        targetBloomRadius = 0.2
-        targetFloatSpeed = 0.5
-        targetLightIntensity = 0
-        newAnimation = 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
-      } else if (elapsed < 5) {
-        const t = (elapsed - 2.5) / 2.5
-        targetProgress = 0.02 + (0.98 * t)
-        targetBloomIntensity = 4 - (2.5 * t)
-        targetBloomRadius = 0.2 + (0.2 * t)
-        targetFloatSpeed = 0.5 - (0.5 * Math.min(1, t * 2))
-        targetLightIntensity = t
-        newAnimation = 'SK_Huggy_RobotNew.ao|A_Huggy_Roar'
-      } else {
-        const t = Math.min(1, (elapsed - 5) / 2)
-        targetProgress = 1 + t
-        targetBloomIntensity = 1.5
-        targetBloomRadius = 0.4
-        targetFloatSpeed = 0
-        targetLightIntensity = 1
-        newAnimation = 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
-      }
-
-      setAtmosphereProgress(targetProgress)
-      setBloomIntensity(targetBloomIntensity)
-      setBloomRadius(targetBloomRadius)
-      setFloatSpeed(targetFloatSpeed)
-      setLightIntensity(targetLightIntensity)
-      animationRef.current = newAnimation
-
-      rafId = requestAnimationFrame(animate)
+  // Scroll tracking - maps scrollY to progress 0→1
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY
+      const windowHeight = window.innerHeight
+      const totalHeight = document.documentElement.scrollHeight
+      const totalScrollable = totalHeight - windowHeight
+      const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, scrollY / totalScrollable)) : 0
+      setScrollProgress(progress)
     }
 
-    rafId = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(rafId)
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Calculate text animations based on scroll progress
+  // Text 1: fade in from below (0→0.15), visible (0.15→0.33), fade out to above (0.33→0.5)
+  // Text 2: fade in from below (0.33→0.5), visible (0.5→0.66), fade out to above (0.66→0.85)
+  // Text 3: fade in from below (0.66→0.85), visible (0.85→1)
+
+  const text1Progress = scrollProgress < 0.15
+    ? scrollProgress / 0.15  // fade in from below
+    : scrollProgress < 0.33
+      ? 1  // fully visible
+      : scrollProgress < 0.5
+        ? 1 - (scrollProgress - 0.33) / 0.17  // fade out to above
+        : 0
+
+  const text2Progress = scrollProgress < 0.33
+    ? 0
+    : scrollProgress < 0.5
+      ? (scrollProgress - 0.33) / 0.17  // fade in from below
+      : scrollProgress < 0.66
+        ? 1  // fully visible
+        : scrollProgress < 0.85
+          ? 1 - (scrollProgress - 0.66) / 0.19  // fade out to above
+          : 0
+
+  const text3Progress = scrollProgress < 0.66
+    ? 0
+    : scrollProgress < 0.85
+      ? (scrollProgress - 0.66) / 0.19  // fade in from below
+      : 1  // fully visible
+
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-[#02130f]">
+    <div ref={containerRef} className="relative" style={{ height: '500vh' }}>
+      {/* Fixed 3D Canvas - behind everything */}
+      <div className="fixed inset-0 z-0">
+        <Canvas
+          dpr={1}
+          gl={{
+            antialias: false,
+            powerPreference: 'high-performance',
+          }}
+        >
+          <AdaptiveDpr pixelated />
+
+          <PerspectiveCamera makeDefault position={[0.01, 0, 1]} fov={10} />
+          <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} target={[0, 0.4, 0]} />
+
+          <color attach="background" args={['#02130f']} />
+          <fog attach="fog" args={['#02130f', 3, 12]} />
+
+          <Atmosphere progress={scrollProgress * 2} />
+
+          <Suspense fallback={null}>
+            <LightController intensity={scrollProgress > 0.05 ? 1 : 0} />
+
+            <Float speed={scrollProgress < 0.1 ? 0.5 : 0} rotationIntensity={0} floatIntensity={0.05}>
+              <Center>
+                <RobotBody animation={animationRef.current as any} scale={1} position={[0, 0, 0]} />
+              </Center>
+            </Float>
+
+            <EffectComposer enableNormalPass={false}>
+              <Bloom
+                luminanceThreshold={1}
+                mipmapBlur
+                intensity={scrollProgress < 0.1 ? 4 : 1.5}
+                radius={scrollProgress < 0.1 ? 0.2 : 0.4}
+              />
+            </EffectComposer>
+          </Suspense>
+        </Canvas>
+      </div>
+
       {/* Vignette overlay */}
       <div
-        className="absolute inset-0 pointer-events-none z-10"
+        className="fixed inset-0 pointer-events-none z-10"
         style={{
-          background: 'radial-gradient(circle at 50% 50%, transparent 20%, rgba(2,19,15,0.85) 100%)',
-          transition: 'opacity 0.5s ease-out'
+          background: 'radial-gradient(circle at 50% 50%, transparent 20%, rgba(2,19,15,0.85) 100%)'
         }}
       />
 
-      <Canvas
-        dpr={1}
-        gl={{
-          antialias: false,
-          powerPreference: 'high-performance',
-        }}
-      >
-        <AdaptiveDpr pixelated />
+      {/* Scrollable Text Sections - ALL fixed at same viewport position */}
+      <div className="fixed inset-0 z-20 pointer-events-none">
+        {/* Text 1: HUGGY PROTOCOL */}
+        <div
+          className="absolute inset-0 flex items-center justify-end px-20"
+          style={{
+            opacity: text1Progress,
+            transform: `translateY(${text1Progress * 80 - 80}px)`,
+            pointerEvents: text1Progress > 0.05 ? 'auto' : 'none'
+          }}
+        >
+          <div className="max-w-md text-right">
+            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// PROTOCOL_INITIALIZED</p>
+            <h2 className="text-5xl font-black text-emerald-100 mb-4 leading-tight">HUGGY<br /><span className="text-[#10b981]">PROTOCOL</span></h2>
+            <p className="text-emerald-300/70 text-sm leading-relaxed">
+              Advanced autonomous unit designed for secure digital asset management with neural-network driven decision making.
+            </p>
+          </div>
+        </div>
 
-        <PerspectiveCamera makeDefault position={[0.01, 0, 1]} fov={10} />
-        <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} target={[0, 0.4, 0]} />
+        {/* Text 2: UNIT MOBILITY */}
+        <div
+          className="absolute inset-0 flex items-center justify-end px-20"
+          style={{
+            opacity: text2Progress,
+            transform: `translateY(${text2Progress * 80 - 80}px)`,
+            pointerEvents: text2Progress > 0.05 ? 'auto' : 'none'
+          }}
+        >
+          <div className="max-w-md text-right">
+            <p className="text-emerald-400/80 font-mono text-xs tracking-[0.3em] mb-4">// DANCE_PROTOCOL_ACTIVE</p>
+            <h2 className="text-5xl font-black text-emerald-100 mb-4 leading-tight">UNIT<br /><span className="text-[#10b981]">MOBILITY</span></h2>
+            <p className="text-emerald-300/70 text-sm leading-relaxed">
+              Fluid motion capture enabled. Unit demonstrates enhanced kinematic capabilities through Bedrock-compatible dance algorithms.
+            </p>
+          </div>
+        </div>
 
-        <color attach="background" args={['#02130f']} />
-        <fog attach="fog" args={['#02130f', 3, 12]} />
-
-        <Atmosphere progress={atmosphereProgress} />
-
-        <Suspense fallback={null}>
-          <LightController intensity={lightIntensity} />
-
-          <Float speed={floatSpeed} rotationIntensity={0} floatIntensity={0.05}>
-            <Center>
-              <RobotBody animation={animationRef.current as any} scale={1} position={[0, 0, 0]} />
-            </Center>
-          </Float>
-
-          <EffectComposer enableNormalPass={false}>
-            <Bloom luminanceThreshold={1} mipmapBlur intensity={bloomIntensity} radius={bloomRadius} />
-          </EffectComposer>
-        </Suspense>
-      </Canvas>
+        {/* Text 3: THREAT RESPONSE */}
+        <div
+          className="absolute inset-0 flex items-center justify-end px-20"
+          style={{
+            opacity: text3Progress,
+            transform: `translateY(${text3Progress * 80 - 80}px)`,
+            pointerEvents: text3Progress > 0.05 ? 'auto' : 'none'
+          }}
+        >
+          <div className="max-w-md text-right">
+            <p className="text-red-400/80 font-mono text-xs tracking-[0.3em] mb-4">// COMBAT_READY</p>
+            <h2 className="text-5xl font-black text-red-400 mb-4 leading-tight">THREAT<br /><span className="text-red-500">RESPONSE</span></h2>
+            <p className="text-red-300/70 text-sm leading-relaxed">
+              Attack vector analysis complete. All defensive protocols armed. Intrusion detected = immediate neutralization.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

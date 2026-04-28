@@ -31,7 +31,7 @@ function RobotPageFallback() {
   }
 
   return (
-    <div className="w-full h-screen overflow-hidden bg-[#02130f]">
+    <div className="w-full min-h-screen bg-[#02130f]">
       <RobotSceneComponent />
     </div>
   )

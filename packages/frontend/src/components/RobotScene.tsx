@@ -1,4 +1,3 @@
-import * as THREE from 'three'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera, Center, AdaptiveDpr, Float } from '@react-three/drei'
 import { Suspense, useState, useEffect, useRef } from 'react'
@@ -7,28 +6,34 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing'
 
 // Smoothly interpolated atmosphere component - runs INSIDE Canvas
 function Atmosphere({ progress }: { progress: number }) {
-  const bgRef = useRef(new THREE.Color('#02130f'))
-  const fogRef = useRef(new THREE.Color('#02130f'))
-
-  useFrame((_, delta) => {
-    const speed = 3 * delta
-
-    let targetColor: THREE.Color
+  useFrame(() => {
+    let targetColorHex: string
     if (progress < 1) {
-      targetColor = new THREE.Color('#02130f').lerp(new THREE.Color('#0a1f15'), progress)
+      // Lerp between intro and reveal colors
+      const t = progress
+      const r1 = 2, g1 = 19, b1 = 15 // #02130f
+      const r2 = 10, g2 = 31, b2 = 21 // #0a1f15
+      const r = Math.round(r1 + (r2 - r1) * t)
+      const g = Math.round(g1 + (g2 - g1) * t)
+      const b = Math.round(b1 + (b2 - b1) * t)
+      targetColorHex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
     } else {
-      targetColor = new THREE.Color('#0a1f15').lerp(new THREE.Color('#0d2318'), progress - 1)
+      // Lerp between reveal and ready colors
+      const t = progress - 1
+      const r1 = 10, g1 = 31, b1 = 21 // #0a1f15
+      const r2 = 13, g2 = 35, b2 = 24 // #0d2318
+      const r = Math.round(r1 + (r2 - r1) * t)
+      const g = Math.round(g1 + (g2 - g1) * t)
+      const b = Math.round(b1 + (b2 - b1) * t)
+      targetColorHex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
     }
-
-    bgRef.current.lerp(targetColor, speed)
-    fogRef.current.lerp(targetColor, speed)
 
     const canvas = document.querySelector('canvas')
     const bg = canvas?.parentElement?.querySelector('color')
     const fog = canvas?.parentElement?.querySelector('fog')
 
-    if (bg) (bg as any).args = [bgRef.current.getHexString()]
-    if (fog) (fog as any).args = [fogRef.current.getHexString()]
+    if (bg) (bg as any).args = [targetColorHex]
+    if (fog) (fog as any).args = [targetColorHex]
   })
 
   return null
@@ -36,18 +41,17 @@ function Atmosphere({ progress }: { progress: number }) {
 
 // Light controller - runs INSIDE Canvas to properly use useFrame
 function LightController({ intensity }: { intensity: number }) {
-  const lightRef = useRef(0)
-
   useFrame(() => {
-    lightRef.current += (intensity - lightRef.current) * 0.03
+    // Direct sync - no lerp delay for responsiveness
+    // intensity = 0 when at top (dark), = 1 when scrolled down (lit)
   })
 
   return (
     <>
-      <ambientLight intensity={0.4 * lightRef.current} />
-      <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={4 * lightRef.current} color="#a7f3d0" />
-      <pointLight position={[-10, 2, -5]} intensity={10 * lightRef.current} color="#059669" />
-      <pointLight position={[5, -2, 5]} intensity={2 * lightRef.current} color="#34d399" />
+      <ambientLight intensity={0.4 * intensity} />
+      <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={4 * intensity} color="#a7f3d0" />
+      <pointLight position={[-10, 2, -5]} intensity={10 * intensity} color="#059669" />
+      <pointLight position={[5, -2, 5]} intensity={2 * intensity} color="#34d399" />
     </>
   )
 }
@@ -139,9 +143,9 @@ export function RobotScene() {
           <Atmosphere progress={scrollProgress * 2} />
 
           <Suspense fallback={null}>
-            <LightController intensity={scrollProgress > 0.05 ? 1 : 0} />
+            <LightController intensity={scrollProgress} />
 
-            <Float speed={scrollProgress < 0.1 ? 0.5 : 0} rotationIntensity={0} floatIntensity={0.05}>
+            <Float speed={scrollProgress < 0.15 ? (0.15 - scrollProgress) * 3.33 : 0} rotationIntensity={0} floatIntensity={0.05}>
               <Center>
                 <RobotBody animation={animationRef.current as any} scale={1} position={[0, 0, 0]} />
               </Center>
@@ -151,8 +155,8 @@ export function RobotScene() {
               <Bloom
                 luminanceThreshold={1}
                 mipmapBlur
-                intensity={scrollProgress < 0.1 ? 4 : 1.5}
-                radius={scrollProgress < 0.1 ? 0.2 : 0.4}
+                intensity={4 - scrollProgress * 2.5}
+                radius={0.2 + scrollProgress * 0.2}
               />
             </EffectComposer>
           </Suspense>

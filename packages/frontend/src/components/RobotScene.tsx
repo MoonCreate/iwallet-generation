@@ -85,6 +85,9 @@ export function RobotScene() {
       const totalHeight = document.documentElement.scrollHeight
       const totalScrollable = totalHeight - windowHeight
       const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, scrollY / totalScrollable)) : 0
+
+      console.log('[Scroll] scrollY:', scrollY, '| progress:', progress.toFixed(2), '| text1:', text1Progress.toFixed(2))
+
       setScrollProgress(progress)
     }
 
@@ -123,8 +126,8 @@ export function RobotScene() {
 
   return (
     <div ref={containerRef} className="relative" style={{ height: '500vh' }}>
-      {/* Fixed 3D Canvas - behind everything */}
-      <div className="fixed inset-0 z-0">
+      {/* Sticky 3D Canvas - stays visible while scrolling */}
+      <div className="sticky top-0 h-screen z-0">
         <Canvas
           dpr={1}
           gl={{
@@ -171,15 +174,19 @@ export function RobotScene() {
         }}
       />
 
-      {/* Scrollable Text Sections - ALL fixed at same viewport position */}
-      <div className="fixed inset-0 z-20 pointer-events-none">
-        {/* Text 1: HUGGY PROTOCOL - The Problem Question */}
+      {/* Scrollable Text Sections */}
+      <div
+        className="fixed inset-0 z-50 pointer-events-none"
+        style={{ opacity: scrollProgress > 0.15 ? Math.min(1, (scrollProgress - 0.15) / 0.05) : 0 }}
+      >
+        {/* Text 1 */}
         <div
           className="absolute inset-0 flex items-center justify-end px-20"
           style={{
             opacity: text1Progress,
             transform: `translateY(${text1Progress * 80 - 80}px)`,
-            pointerEvents: text1Progress > 0.05 ? 'auto' : 'none'
+            pointerEvents: text1Progress > 0.05 ? 'auto' : 'none',
+            top: '10%'
           }}
         >
           <div className="max-w-md text-right">
@@ -191,13 +198,14 @@ export function RobotScene() {
           </div>
         </div>
 
-        {/* Text 2: POLICY ENFORCEMENT - The Solution */}
+        {/* Text 2 */}
         <div
           className="absolute inset-0 flex items-center justify-end px-20"
           style={{
             opacity: text2Progress,
             transform: `translateY(${text2Progress * 80 - 80}px)`,
-            pointerEvents: text2Progress > 0.05 ? 'auto' : 'none'
+            pointerEvents: text2Progress > 0.05 ? 'auto' : 'none',
+            top: '35%'
           }}
         >
           <div className="max-w-md text-right">
@@ -209,13 +217,14 @@ export function RobotScene() {
           </div>
         </div>
 
-        {/* Text 3: ATTACK MODE - The Enforcer */}
+        {/* Text 3 */}
         <div
           className="absolute inset-0 flex items-center justify-end px-20"
           style={{
             opacity: text3Progress,
             transform: `translateY(${text3Progress * 80 - 80}px)`,
-            pointerEvents: text3Progress > 0.05 ? 'auto' : 'none'
+            pointerEvents: text3Progress > 0.05 ? 'auto' : 'none',
+            top: '60%'
           }}
         >
           <div className="max-w-md text-right">

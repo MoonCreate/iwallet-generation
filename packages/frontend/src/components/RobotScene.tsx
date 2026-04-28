@@ -96,32 +96,34 @@ export function RobotScene() {
   }, [])
 
   // Calculate text animations based on scroll progress
-  // Text 1: fade in from below (0→0.15), visible (0.15→0.33), fade out to above (0.33→0.5)
-  // Text 2: fade in from below (0.33→0.5), visible (0.5→0.66), fade out to above (0.66→0.85)
-  // Text 3: fade in from below (0.66→0.85), visible (0.85→1)
+  // Text 1: fade in from below (0.20→0.33), visible (0.33→0.50), fade out to above (0.50→0.60)
+  // Text 2: fade in from below (0.50→0.66), visible (0.66→0.85), fade out to above (0.85→0.95)
+  // Text 3: fade in from below (0.85→0.95), visible (0.95→1)
 
-  const text1Progress = scrollProgress < 0.15
-    ? scrollProgress / 0.15  // fade in from below
-    : scrollProgress < 0.33
-      ? 1  // fully visible
-      : scrollProgress < 0.5
-        ? 1 - (scrollProgress - 0.33) / 0.17  // fade out to above
-        : 0
-
-  const text2Progress = scrollProgress < 0.33
+  const text1Progress = scrollProgress < 0.2
     ? 0
-    : scrollProgress < 0.5
-      ? (scrollProgress - 0.33) / 0.17  // fade in from below
-      : scrollProgress < 0.66
+    : scrollProgress < 0.33
+      ? (scrollProgress - 0.2) / 0.13  // fade in from below
+      : scrollProgress < 0.5
         ? 1  // fully visible
-        : scrollProgress < 0.85
-          ? 1 - (scrollProgress - 0.66) / 0.19  // fade out to above
+        : scrollProgress < 0.6
+          ? 1 - (scrollProgress - 0.5) / 0.1  // fade out to above
           : 0
 
-  const text3Progress = scrollProgress < 0.66
+  const text2Progress = scrollProgress < 0.5
     ? 0
-    : scrollProgress < 0.85
-      ? (scrollProgress - 0.66) / 0.19  // fade in from below
+    : scrollProgress < 0.66
+      ? (scrollProgress - 0.5) / 0.16  // fade in from below
+      : scrollProgress < 0.85
+        ? 1  // fully visible
+        : scrollProgress < 0.95
+          ? 1 - (scrollProgress - 0.85) / 0.1  // fade out to above
+          : 0
+
+  const text3Progress = scrollProgress < 0.85
+    ? 0
+    : scrollProgress < 0.95
+      ? (scrollProgress - 0.85) / 0.1  // fade in from below
       : 1  // fully visible
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
@@ -129,6 +131,11 @@ export function RobotScene() {
   // Adjust camera for mobile - closer position so robot fills frame (head visible)
   const cameraPosition = isMobile ? [-0.05, 0.1, 0.8] : [0.01, 0, 1]
   const cameraFov = isMobile ? 17 : 10
+
+  // Robot scene starts at scrollProgress ~0.19 (after hero section)
+  // Normalize robot intensity: at 0.19 = dark (0), at 1 = full light (1)
+  const robotSceneStart = 0.19
+  const robotIntensity = Math.max(0, Math.min(1, (scrollProgress - robotSceneStart) / (1 - robotSceneStart)))
 
   return (
     <div ref={containerRef} className="relative" style={{ height: '500vh' }}>
@@ -149,12 +156,12 @@ export function RobotScene() {
           <color attach="background" args={['#02130f']} />
           <fog attach="fog" args={['#02130f', 3, 12]} />
 
-          <Atmosphere progress={scrollProgress * 2} />
+          <Atmosphere progress={robotIntensity * 2} />
 
           <Suspense fallback={null}>
-            <LightController intensity={scrollProgress} />
+            <LightController intensity={robotIntensity} />
 
-            <Float speed={scrollProgress < 0.15 ? (0.15 - scrollProgress) * 3.33 : 0} rotationIntensity={0} floatIntensity={0.05}>
+            <Float speed={robotIntensity < 0.15 ? (0.15 - robotIntensity) * 3.33 : 0} rotationIntensity={0} floatIntensity={0.05}>
               <Center>
                 <RobotBody animation={animationRef.current as any} scale={1} position={[0, 0, 0]} />
               </Center>
@@ -164,8 +171,8 @@ export function RobotScene() {
               <Bloom
                 luminanceThreshold={1}
                 mipmapBlur
-                intensity={4 - scrollProgress * 2.5}
-                radius={0.2 + scrollProgress * 0.2}
+                intensity={4 - robotIntensity * 2.5}
+                radius={0.2 + robotIntensity * 0.2}
               />
             </EffectComposer>
           </Suspense>
@@ -183,7 +190,7 @@ export function RobotScene() {
       {/* Scrollable Text Sections */}
       <div
         className="fixed inset-0 z-50 pointer-events-none"
-        style={{ opacity: scrollProgress > 0.15 ? Math.min(1, (scrollProgress - 0.15) / 0.05) : 0 }}
+        style={{ opacity: scrollProgress > 0.2 ? Math.min(1, (scrollProgress - 0.2) / 0.05) : 0 }}
       >
         {/* Text 1 */}
         <div

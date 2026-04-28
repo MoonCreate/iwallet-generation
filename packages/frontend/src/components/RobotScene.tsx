@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera, Center, AdaptiveDpr, Float } from '@react-three/drei'
 import { Suspense, useState, useEffect, useRef } from 'react'
 import { RobotBody } from './RobotBody'
@@ -37,10 +37,7 @@ function FloatingRobotBody({ animation }: { animation: string }) {
 
   // Floating speed intensity managed organically without triggering React Re-renders
   useFrame(() => {
-    const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
-    const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, window.scrollY / totalScrollable)) : 0
-    const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
-    
+
     // Fallback: simply use the Float component but its props aren't highly reactive without re-renders. 
     // We update scale slightly for breathing effect or let Float do its thing.
   })
@@ -61,7 +58,7 @@ function PostProcessingController() {
       const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
       const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, window.scrollY / totalScrollable)) : 0
       const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
-      
+
       setIntensity(4 - robotIntensity * 2.5)
       setRadius(0.2 + robotIntensity * 0.2)
     }
@@ -104,15 +101,15 @@ export function RobotScene() {
       // Calculate the specific animation boundary so React doesn't re-render redundantly
       const newAnim = progress < 0.33 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
         : progress < 0.66 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Dance_Bedrock'
-        : 'SK_Huggy_RobotNew.ao|A_Huggy_Attack'
+          : 'SK_Huggy_RobotNew.ao|A_Huggy_Attack'
 
       setAnimationString(prev => prev !== newAnim ? newAnim : prev)
-      
+
       // Hardware-accelerated DOM background manipulation to guarantee perfect CSS match with Hero Section
       const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
       const p = robotIntensity * 2
       let r, g, b
-      
+
       if (p < 1) {
         const t = p
         r = 2 + (10 - 2) * t
@@ -174,7 +171,7 @@ export function RobotScene() {
           dpr={1}
           gl={{
             antialias: false,
-            powerPreference: 'high-performance',
+            powerPreference: 'default',
             alpha: true
           }}
         >

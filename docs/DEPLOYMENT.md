@@ -5,28 +5,27 @@ Production: **https://wallet.goon4.site**
 ## Architecture
 
 ```
-                          [ Internet :443 ]
-                                  │
-                                  ▼
-                  [ Nginx — wallet.goon4.site ]
-                  │ TLS (Let's Encrypt, auto-renew)
-                  │
-   ┌──────────────┴────────────────┐
-   │                                │
-   │  /api/*  ─►  127.0.0.1:3003    │   iwallet-backend.service
-   │             (no path strip;    │   Bun + Elysia
-   │              backend mounts    │   prefix /api/agent)
-   │              /api/agent itself)│
-   │                                │
-   │  /health ─► 127.0.0.1:3003     │   backend root /health
-   │                                │
-   │  /assets/* /favicon.ico ...    │   served from
-   │   (static)                     │   packages/frontend/dist/client
-   │                                │
-   │  / (everything else) ─►        │   iwallet-frontend.service
-   │   127.0.0.1:3002               │   Bun + TanStack Start SSR
-   └────────────────────────────────┘
+                       [ Internet :443 ]
+                              │
+              ┌───────────────┴─────────────────┐
+              ▼                                 ▼
+ [ Nginx — wallet.goon4.site ]      [ Nginx — be-wallet.goon4.site ]
+  │ TLS (Let's Encrypt)              │ TLS (Let's Encrypt)
+  │                                  │
+  │ /assets/*  /favicon.ico          │ proxy_pass → 127.0.0.1:3003
+  │   serve static from              │     iwallet-backend.service
+  │   packages/frontend/dist/client  │     Bun + Elysia
+  │                                  │     endpoints:
+  │ /  (everything else) ──►         │       /health
+  │   127.0.0.1:3002                 │       /api/agent/* (Elysia prefix)
+  │     iwallet-frontend.service     │
+  │     Bun + TanStack Start SSR     │
+  └──────────────────────────────────┘
 ```
+
+**URLs:**
+- Frontend (browser-facing): `https://wallet.goon4.site`
+- Backend (called by frontend, also externally reachable): `https://be-wallet.goon4.site`
 
 **Server:** `root@84.247.148.107` (Ubuntu 24.04) — shared with `love.goon4.site` (pactly)
 **Repo on server:** `/var/www/iwallet-generation`
@@ -116,7 +115,7 @@ gh workflow run Deploy --repo MoonCreate/iwallet-generation --ref master
 ```
 
 Keys to set:
-- `VITE_API_URL=https://wallet.goon4.site` — keep (frontend includes `/api/...` in its fetch URLs)
+- `VITE_API_URL=https://be-wallet.goon4.site` — keep (frontend builds its fetch URLs as `${VITE_API_URL}/api/agent/...`, which matches the Elysia route prefix on the backend)
 - `VITE_REGISTRY_ADDRESS=<deployed PolicyRegistry proxy>` — replace dummy `0x000…000` with the real testnet/mainnet proxy address
 - `VITE_REOWN_PROJECT_ID=<reown id>` — replace dummy if you use a separate Reown project
 
@@ -173,8 +172,10 @@ certbot renew --dry-run                             # verify cert renewal
 | Frontend SSR launcher | `/var/www/iwallet-generation/packages/frontend/serve.ts` |
 | Built static assets | `/var/www/iwallet-generation/packages/frontend/dist/client/` |
 | systemd units | `/etc/systemd/system/iwallet-{backend,frontend}.service` |
-| Nginx site | `/etc/nginx/sites-available/wallet.goon4.site` |
-| TLS cert | `/etc/letsencrypt/live/wallet.goon4.site/` |
+| Nginx site (frontend) | `/etc/nginx/sites-available/wallet.goon4.site` |
+| Nginx site (backend) | `/etc/nginx/sites-available/be-wallet.goon4.site` |
+| TLS cert (frontend) | `/etc/letsencrypt/live/wallet.goon4.site/` |
+| TLS cert (backend) | `/etc/letsencrypt/live/be-wallet.goon4.site/` |
 | Server's GitHub deploy key (this repo) | `/root/.ssh/wallet_deploy` |
 
 ## Notes

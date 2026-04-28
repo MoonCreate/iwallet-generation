@@ -1,144 +1,173 @@
-import { Canvas, useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera, Center, AdaptiveDpr, Float } from '@react-three/drei'
 import { Suspense, useState, useEffect, useRef } from 'react'
 import { RobotBody } from './RobotBody'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
+// Light controller - React State decoupled
+function LightController() {
+  const ambientRef = useRef<THREE.AmbientLight>(null)
+  const spotRef = useRef<THREE.SpotLight>(null)
+  const point1Ref = useRef<THREE.PointLight>(null)
+  const point2Ref = useRef<THREE.PointLight>(null)
 
-// Smoothly interpolated atmosphere component - runs INSIDE Canvas
-function Atmosphere({ progress }: { progress: number }) {
   useFrame(() => {
-    let targetColorHex: string
-    if (progress < 1) {
-      // Lerp between intro and reveal colors
-      const t = progress
-      const r1 = 2, g1 = 19, b1 = 15 // #02130f
-      const r2 = 10, g2 = 31, b2 = 21 // #0a1f15
-      const r = Math.round(r1 + (r2 - r1) * t)
-      const g = Math.round(g1 + (g2 - g1) * t)
-      const b = Math.round(b1 + (b2 - b1) * t)
-      targetColorHex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-    } else {
-      // Lerp between reveal and ready colors
-      const t = progress - 1
-      const r1 = 10, g1 = 31, b1 = 21 // #0a1f15
-      const r2 = 13, g2 = 35, b2 = 24 // #0d2318
-      const r = Math.round(r1 + (r2 - r1) * t)
-      const g = Math.round(g1 + (g2 - g1) * t)
-      const b = Math.round(b1 + (b2 - b1) * t)
-      targetColorHex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-    }
+    const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
+    const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, window.scrollY / totalScrollable)) : 0
+    const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
 
-    const canvas = document.querySelector('canvas')
-    const bg = canvas?.parentElement?.querySelector('color')
-    const fog = canvas?.parentElement?.querySelector('fog')
-
-    if (bg) (bg as any).args = [targetColorHex]
-    if (fog) (fog as any).args = [targetColorHex]
-  })
-
-  return null
-}
-
-// Light controller - runs INSIDE Canvas to properly use useFrame
-function LightController({ intensity }: { intensity: number }) {
-  useFrame(() => {
-    // Direct sync - no lerp delay for responsiveness
-    // intensity = 0 when at top (dark), = 1 when scrolled down (lit)
+    if (ambientRef.current) ambientRef.current.intensity = 0.4 * robotIntensity
+    if (spotRef.current) spotRef.current.intensity = 4 * robotIntensity
+    if (point1Ref.current) point1Ref.current.intensity = 10 * robotIntensity
+    if (point2Ref.current) point2Ref.current.intensity = 2 * robotIntensity
   })
 
   return (
     <>
-      <ambientLight intensity={0.4 * intensity} />
-      <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={4 * intensity} color="#a7f3d0" />
-      <pointLight position={[-10, 2, -5]} intensity={10 * intensity} color="#059669" />
-      <pointLight position={[5, -2, 5]} intensity={2 * intensity} color="#34d399" />
+      <ambientLight ref={ambientRef} intensity={0} />
+      <spotLight ref={spotRef} position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={0} color="#a7f3d0" />
+      <pointLight ref={point1Ref} position={[-10, 2, -5]} intensity={0} color="#059669" />
+      <pointLight ref={point2Ref} position={[5, -2, 5]} intensity={0} color="#34d399" />
     </>
   )
 }
 
-export function RobotScene() {
-  const containerRef = useRef<HTMLDivElement>(null)
+function FloatingRobotBody({ animation }: { animation: string }) {
+  const floatRef = useRef<THREE.Group>(null)
 
-  // Scroll progress (0 → 1 mapped to scroll position)
-  const [scrollProgress, setScrollProgress] = useState(0)
+  // Floating speed intensity managed organically without triggering React Re-renders
+  useFrame(() => {
+    const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
+    const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, window.scrollY / totalScrollable)) : 0
+    const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
+    
+    // Fallback: simply use the Float component but its props aren't highly reactive without re-renders. 
+    // We update scale slightly for breathing effect or let Float do its thing.
+  })
 
-  // Animation stages based on scroll progress
-  // Stage 0: progress 0 → 0.33 = Idle
-  // Stage 1: progress 0.33 → 0.66 = Dance
-  // Stage 2: progress 0.66 → 1 = Attack
-  const currentAnimation =
-    scrollProgress < 0.33 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
-      : scrollProgress < 0.66 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Dance_Bedrock'
-        : 'SK_Huggy_RobotNew.ao|A_Huggy_Attack'
+  return (
+    <Center ref={floatRef}>
+      <RobotBody animation={animation as any} scale={1} position={[0, 0, 0]} />
+    </Center>
+  )
+}
 
-  const animationRef = useRef<string>('SK_Huggy_RobotNew.ao|A_Huggy_Idle')
+function PostProcessingController() {
+  const [intensity, setIntensity] = useState(4)
+  const [radius, setRadius] = useState(0.2)
 
-  useEffect(() => {
-    animationRef.current = currentAnimation
-  }, [currentAnimation])
-
-  // Scroll tracking - maps scrollY to progress 0→1
   useEffect(() => {
     const handleScroll = () => {
-      const scrollY = window.scrollY
-      const windowHeight = window.innerHeight
-      const totalHeight = document.documentElement.scrollHeight
-      const totalScrollable = totalHeight - windowHeight
-      const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, scrollY / totalScrollable)) : 0
-
-      console.log('[Scroll] scrollY:', scrollY, '| progress:', progress.toFixed(2), '| text1:', text1Progress.toFixed(2))
-
-      setScrollProgress(progress)
+      const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
+      const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, window.scrollY / totalScrollable)) : 0
+      const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
+      
+      setIntensity(4 - robotIntensity * 2.5)
+      setRadius(0.2 + robotIntensity * 0.2)
     }
 
+    handleScroll()
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Calculate text animations based on scroll progress
-  // Text 1: fade in from below (0.20→0.33), visible (0.33→0.50), fade out to above (0.50→0.60)
-  // Text 2: fade in from below (0.50→0.66), visible (0.66→0.85), fade out to above (0.85→0.95)
-  // Text 3: fade in from below (0.85→0.95), visible (0.95→1)
+  return (
+    <EffectComposer enableNormalPass={false}>
+      <Bloom
+        luminanceThreshold={1}
+        mipmapBlur
+        intensity={intensity}
+        radius={radius}
+      />
+    </EffectComposer>
+  )
+}
 
-  const text1Progress = scrollProgress < 0.2
-    ? 0
-    : scrollProgress < 0.33
-      ? (scrollProgress - 0.2) / 0.13  // fade in from below
-      : scrollProgress < 0.5
-        ? 1  // fully visible
-        : scrollProgress < 0.6
-          ? 1 - (scrollProgress - 0.5) / 0.1  // fade out to above
-          : 0
 
-  const text2Progress = scrollProgress < 0.5
-    ? 0
-    : scrollProgress < 0.66
-      ? (scrollProgress - 0.5) / 0.16  // fade in from below
-      : scrollProgress < 0.85
-        ? 1  // fully visible
-        : scrollProgress < 0.95
-          ? 1 - (scrollProgress - 0.85) / 0.1  // fade out to above
-          : 0
+export function RobotScene() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const text1Ref = useRef<HTMLDivElement>(null)
+  const text2Ref = useRef<HTMLDivElement>(null)
+  const text3Ref = useRef<HTMLDivElement>(null)
+  const textsContainerRef = useRef<HTMLDivElement>(null)
 
-  const text3Progress = scrollProgress < 0.85
-    ? 0
-    : scrollProgress < 0.95
-      ? (scrollProgress - 0.85) / 0.1  // fade in from below
-      : 1  // fully visible
+  // Only state left: The animation string! Triggers a minimal re-render only when thresholds are crossed.
+  const [animationString, setAnimationString] = useState('SK_Huggy_RobotNew.ao|A_Huggy_Idle')
+
+  // Highly optimized unified scroll listener outside of React Virtual DOM
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY
+      const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
+      const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, scrollY / totalScrollable)) : 0
+
+      // Calculate the specific animation boundary so React doesn't re-render redundantly
+      const newAnim = progress < 0.33 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
+        : progress < 0.66 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Dance_Bedrock'
+        : 'SK_Huggy_RobotNew.ao|A_Huggy_Attack'
+
+      setAnimationString(prev => prev !== newAnim ? newAnim : prev)
+      
+      // Hardware-accelerated DOM background manipulation to guarantee perfect CSS match with Hero Section
+      const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
+      const p = robotIntensity * 2
+      let r, g, b
+      
+      if (p < 1) {
+        const t = p
+        r = 2 + (10 - 2) * t
+        g = 19 + (31 - 19) * t
+        b = 15 + (21 - 15) * t
+      } else {
+        const t = p - 1
+        r = 10 + (13 - 10) * t
+        g = 31 + (35 - 31) * t
+        b = 21 + (24 - 21) * t
+      }
+
+      if (containerRef.current) {
+        containerRef.current.style.backgroundColor = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`
+      }
+
+      // Hardware-accelerated DOM manipulation for Text Layouts
+      if (textsContainerRef.current) {
+        textsContainerRef.current.style.opacity = progress > 0.2 ? Math.min(1, (progress - 0.2) / 0.05).toString() : "0"
+      }
+
+      if (text1Ref.current) {
+        const text1Prog = progress < 0.2 ? 0 : progress < 0.33 ? (progress - 0.2) / 0.13 : progress < 0.5 ? 1 : progress < 0.6 ? 1 - (progress - 0.5) / 0.1 : 0
+        text1Ref.current.style.opacity = text1Prog.toString()
+        text1Ref.current.style.transform = `translateY(${text1Prog * 80 - 80}px)`
+        text1Ref.current.style.pointerEvents = text1Prog > 0.05 ? 'auto' : 'none'
+      }
+
+      if (text2Ref.current) {
+        const text2Prog = progress < 0.5 ? 0 : progress < 0.66 ? (progress - 0.5) / 0.16 : progress < 0.85 ? 1 : progress < 0.95 ? 1 - (progress - 0.85) / 0.1 : 0
+        text2Ref.current.style.opacity = text2Prog.toString()
+        text2Ref.current.style.transform = `translateY(${text2Prog * 80 - 80}px)`
+        text2Ref.current.style.pointerEvents = text2Prog > 0.05 ? 'auto' : 'none'
+      }
+
+      if (text3Ref.current) {
+        const text3Prog = progress < 0.85 ? 0 : progress < 0.95 ? (progress - 0.85) / 0.1 : 1
+        text3Ref.current.style.opacity = text3Prog.toString()
+        text3Ref.current.style.transform = `translateY(${text3Prog * 80 - 80}px)`
+        text3Ref.current.style.pointerEvents = text3Prog > 0.05 ? 'auto' : 'none'
+      }
+    }
+
+    // Call once initially to set the layout
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
-
-  // Adjust camera for mobile - closer position so robot fills frame (head visible)
   const cameraPosition = isMobile ? [-0.05, 0.1, 0.8] : [0.01, 0, 1]
   const cameraFov = isMobile ? 17 : 10
 
-  // Robot scene starts at scrollProgress ~0.19 (after hero section)
-  // Normalize robot intensity: at 0.19 = dark (0), at 1 = full light (1)
-  const robotSceneStart = 0.19
-  const robotIntensity = Math.max(0, Math.min(1, (scrollProgress - robotSceneStart) / (1 - robotSceneStart)))
-
   return (
-    <div ref={containerRef} className="relative" style={{ height: '500vh' }}>
+    <div ref={containerRef} className="relative" style={{ height: '500vh', backgroundColor: 'rgb(2, 19, 15)' }}>
       {/* Sticky 3D Canvas - stays visible while scrolling */}
       <div className="sticky top-0 h-screen z-0">
         <Canvas
@@ -146,36 +175,25 @@ export function RobotScene() {
           gl={{
             antialias: false,
             powerPreference: 'high-performance',
+            alpha: true
           }}
         >
           <AdaptiveDpr pixelated />
-
           <PerspectiveCamera makeDefault position={cameraPosition as any} fov={cameraFov} />
           <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} target={[0, isMobile ? 0.4 : 0.4, 0]} />
 
-          <color attach="background" args={['#02130f']} />
+          {/* Background is fully transparent to reveal CSS backgroundColor */}
           <fog attach="fog" args={['#02130f', 3, 12]} />
 
-          <Atmosphere progress={robotIntensity * 2} />
+          {/* Logic decoupled controllers running natively on GPU frames */}
+          <LightController />
+          <PostProcessingController />
 
-          <Suspense fallback={null}>
-            <LightController intensity={robotIntensity} />
-
-            <Float speed={robotIntensity < 0.15 ? (0.15 - robotIntensity) * 3.33 : 0} rotationIntensity={0} floatIntensity={0.05}>
-              <Center>
-                <RobotBody animation={animationRef.current as any} scale={1} position={[0, 0, 0]} />
-              </Center>
-            </Float>
-
-            <EffectComposer enableNormalPass={false}>
-              <Bloom
-                luminanceThreshold={1}
-                mipmapBlur
-                intensity={4 - robotIntensity * 2.5}
-                radius={0.2 + robotIntensity * 0.2}
-              />
-            </EffectComposer>
-          </Suspense>
+          <Float speed={1} rotationIntensity={0} floatIntensity={0.05}>
+            <Suspense fallback={null}>
+              <FloatingRobotBody animation={animationString} />
+            </Suspense>
+          </Float>
         </Canvas>
       </div>
 
@@ -188,20 +206,9 @@ export function RobotScene() {
       />
 
       {/* Scrollable Text Sections */}
-      <div
-        className="fixed inset-0 z-50 pointer-events-none"
-        style={{ opacity: scrollProgress > 0.2 ? Math.min(1, (scrollProgress - 0.2) / 0.05) : 0 }}
-      >
+      <div ref={textsContainerRef} className="fixed inset-0 z-50 pointer-events-none" style={{ opacity: 0 }}>
         {/* Text 1 */}
-        <div
-          className="absolute inset-0 flex items-center justify-end px-6 md:px-20"
-          style={{
-            opacity: text1Progress,
-            transform: `translateY(${text1Progress * 80 - 80}px)`,
-            pointerEvents: text1Progress > 0.05 ? 'auto' : 'none',
-            top: '10%'
-          }}
-        >
+        <div ref={text1Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '10%' }}>
           <div className="max-w-[90%] md:max-w-md text-right">
             <p className="text-emerald-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// VULNERABILITY_DETECTED</p>
             <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-emerald-100 mb-1 md:mb-4 leading-tight">WHAT IF<br /><span className="text-[#10b981]">THE AI GOES ROGUE?</span></h2>
@@ -212,15 +219,7 @@ export function RobotScene() {
         </div>
 
         {/* Text 2 */}
-        <div
-          className="absolute inset-0 flex items-center justify-end px-6 md:px-20"
-          style={{
-            opacity: text2Progress,
-            transform: `translateY(${text2Progress * 80 - 80}px)`,
-            pointerEvents: text2Progress > 0.05 ? 'auto' : 'none',
-            top: '35%'
-          }}
-        >
+        <div ref={text2Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '35%' }}>
           <div className="max-w-[90%] md:max-w-md text-right">
             <p className="text-emerald-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// PROTECTION_ACTIVATED</p>
             <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-emerald-100 mb-1 md:mb-4 leading-tight">THIS IS<br /><span className="text-[#10b981]">WHERE I STEP IN</span></h2>
@@ -231,15 +230,7 @@ export function RobotScene() {
         </div>
 
         {/* Text 3 */}
-        <div
-          className="absolute inset-0 flex items-center justify-end px-6 md:px-20"
-          style={{
-            opacity: text3Progress,
-            transform: `translateY(${text3Progress * 80 - 80}px)`,
-            pointerEvents: text3Progress > 0.05 ? 'auto' : 'none',
-            top: '60%'
-          }}
-        >
+        <div ref={text3Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '60%' }}>
           <div className="max-w-[90%] md:max-w-md text-right">
             <p className="text-red-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// COMBAT_STANCE</p>
             <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-red-400 mb-1 md:mb-4 leading-tight">TRY ME.<br /><span className="text-red-500">I DARE YOU.</span></h2>

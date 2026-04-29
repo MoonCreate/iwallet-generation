@@ -149,33 +149,34 @@ export function RobotScene() {
       // Hardware-accelerated DOM manipulation for Text Layouts
       // Only show texts when container is in view
       if (textsContainerRef.current) {
-        textsContainerRef.current.style.opacity = containerInView && progress > 0.2 ? Math.min(1, (progress - 0.2) / 0.05).toString() : "0"
+        textsContainerRef.current.style.opacity = progress > 0.2 ? Math.min(1, (progress - 0.2) / 0.05).toString() : "0"
       }
 
       if (text1Ref.current) {
-        const text1Prog = progress < 0.2 ? 0 : progress < 0.33 ? (progress - 0.2) / 0.13 : progress < 0.5 ? 1 : progress < 0.6 ? 1 - (progress - 0.5) / 0.1 : 0
-        text1Ref.current.style.opacity = containerInView ? text1Prog.toString() : "0"
-        text1Ref.current.style.transform = `translateY(${text1Prog * 80 - 80}px)`
-        text1Ref.current.style.pointerEvents = text1Prog > 0.05 && containerInView ? 'auto' : 'none'
+        const text1Prog = progress < 0.1 ? 0 : progress < 0.25 ? (progress - 0.1) / 0.15 : progress < 0.48 ? 1 : 1 - (progress - 0.48) / 0.07
+        const text1Transform = progress < 0.1 ? (text1Prog * 80 - 80) : progress < 0.25 ? (text1Prog * 80 - 80) : 0
+        text1Ref.current.style.opacity = text1Prog.toString()
+        text1Ref.current.style.transform = `translateY(${text1Transform}px)`
+        text1Ref.current.style.pointerEvents = text1Prog > 0.05 ? 'auto' : 'none'
       }
 
       if (text2Ref.current) {
-        const text2Prog = progress < 0.5 ? 0 : progress < 0.6 ? (progress - 0.5) / 0.1 : progress < 0.75 ? 1 : progress < 0.85 ? 1 - (progress - 0.75) / 0.1 : 0
-        text2Ref.current.style.opacity = containerInView ? text2Prog.toString() : "0"
-        text2Ref.current.style.transform = `translateY(${text2Prog * 80 - 80}px)`
-        text2Ref.current.style.pointerEvents = text2Prog > 0.05 && containerInView ? 'auto' : 'none'
+        const text2Prog = progress < 0.5 ? 0 : progress < 0.65 ? (progress - 0.5) / 0.15 : progress < 0.78 ? 1 : 1 - (progress - 0.78) / 0.07
+        const text2Transform = progress < 0.5 ? (text2Prog * 80 - 80) : progress < 0.65 ? (text2Prog * 80 - 80) : 0
+        text2Ref.current.style.opacity = text2Prog.toString()
+        text2Ref.current.style.transform = `translateY(${text2Transform}px)`
+        text2Ref.current.style.pointerEvents = text2Prog > 0.05 ? 'auto' : 'none'
       }
 
       if (text3Ref.current) {
-        const text3Prog = progress < 0.85 ? 0 : progress < 0.90 ? (progress - 0.85) / 0.05 : progress < 0.99 ? 1 : 0
-        const text3Opacity = (!containerInView || progress >= 1.0) ? 0 : text3Prog
-        text3Ref.current.style.opacity = text3Opacity.toString()
-        text3Ref.current.style.transform = `translateY(${text3Prog * 80 - 80}px)`
-        text3Ref.current.style.pointerEvents = text3Prog > 0.05 && containerInView ? 'auto' : 'none'
+        const text3Prog = progress < 0.85 ? 0 : progress < 0.95 ? (progress - 0.85) / 0.1 : 1
+        const text3Transform = progress < 0.85 ? (text3Prog * 80 - 80) : 0
+        text3Ref.current.style.opacity = text3Prog.toString()
+        text3Ref.current.style.transform = `translateY(${text3Transform}px)`
+        text3Ref.current.style.pointerEvents = text3Prog > 0.05 ? 'auto' : 'none'
       }
 
-      // Debug log
-      console.log(`[Scroll] containerInView: ${containerInView} | progress: ${progress.toFixed(3)} | viewportBottom: ${viewportBottom} | containerTop: ${containerTop}`)
+      // Debug log - removed containerInView check since texts now scroll with container
     }
 
     // Call once initially to set the layout
@@ -189,9 +190,9 @@ export function RobotScene() {
   const cameraFov = isMobile ? 17 : 10
 
   return (
-    <div ref={containerRef} className="relative w-full" style={{ height: '1200vh', backgroundColor: 'rgb(2, 19, 15)' }}>
+    <div ref={containerRef} className="relative w-full" style={{ height: '300vh', backgroundColor: 'rgb(2, 19, 15)' }}>
       {/* Sticky 3D Canvas - stays visible during scroll, releases when container passes */}
-      <div className="sticky top-0 h-screen z-0">
+      <div className="sticky top-0 h-screen z-10">
         <Canvas
           dpr={1}
           gl={{
@@ -219,18 +220,18 @@ export function RobotScene() {
         </Canvas>
       </div>
 
-      {/* Vignette overlay - stays fixed in viewport with sticky canvas */}
+      {/* Vignette overlay - absolute, scrolls WITH container */}
       <div
-        className="fixed inset-0 pointer-events-none z-10"
+        className="absolute inset-0 pointer-events-none z-20"
         style={{
           background: 'radial-gradient(circle at 50% 50%, transparent 20%, rgba(2,19,15,0.85) 100%)'
         }}
       />
 
-      {/* Scrollable Text Sections - stays fixed in viewport with sticky canvas */}
-      <div ref={textsContainerRef} className="fixed inset-0 z-50 pointer-events-none" style={{ opacity: 0 }}>
+      {/* Text Container - absolute, scrolls WITH container (NOT fixed to viewport) */}
+      <div ref={textsContainerRef} className="absolute inset-0 z-50 pointer-events-none" style={{ opacity: 0 }}>
         {/* Text 1 */}
-        <div ref={text1Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '10%' }}>
+        <div ref={text1Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '-10%' }}>
           <div className="max-w-[90%] md:max-w-md text-right">
             <p className="text-emerald-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// VULNERABILITY_DETECTED</p>
             <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-emerald-100 mb-1 md:mb-4 leading-tight">WHAT IF<br /><span className="text-[#10b981]">THE AI GOES ROGUE?</span></h2>

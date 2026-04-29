@@ -8,7 +8,7 @@ export const Route = createFileRoute('/robot')({
 
 function RobotPageFallback() {
   const [RobotSceneComponent, setRobotSceneComponent] = useState<any>(null)
-  
+
   useEffect(() => {
     let mounted = true
     import('#/components/RobotScene').then(m => {
@@ -76,7 +76,7 @@ function RobotPageFallback() {
       </section>
 
       {/* Robot Scene - scrolls away naturally like Hero */}
-      <div className="relative" style={{ height: '1200vh' }}>
+      <div className="relative" style={{ height: '300vh' }}>
         <RobotSceneComponent />
       </div>
 

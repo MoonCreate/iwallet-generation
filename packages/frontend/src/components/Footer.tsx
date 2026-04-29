@@ -46,9 +46,6 @@ export default function Footer() {
           <p className="text-emerald-400/40 text-sm">
             &copy; {year} iWallet Protocol. All rights reserved.
           </p>
-          <p className="text-emerald-400/40 text-sm font-mono text-xs">
-            // ZERO_COLLATERAL_LOSS
-          </p>
         </div>
       </div>
     </footer>

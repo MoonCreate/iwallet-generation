@@ -1,18 +1,17 @@
 export function FeaturesGrid() {
   const features = [
     {
-      title: 'Daily Limits',
-      description: 'Cap how much your AI agent can spend per day. Even a compromised agent can\'t drain your funds in one go.',
+      title: 'Derived Keys',
+      description: 'No new seed phrases. iWallets are deterministically derived from your master wallet signature. Recoverable anytime.',
       icon: (
         <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" strokeLinecap="round" />
+          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 12" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ),
     },
     {
-      title: 'Contract Whitelist',
-      description: 'Your agent can only interact with pre-approved contracts. Unknown addresses are automatically blocked.',
+      title: 'On-Chain Policy',
+      description: 'Daily spend limits, contract whitelists, cooldowns — all enforced by smart contracts, not just software.',
       icon: (
         <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
           <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
@@ -21,23 +20,22 @@ export function FeaturesGrid() {
       ),
     },
     {
-      title: 'Cooldown Windows',
-      description: 'Set time windows between transactions. Prevents rapid draining even if credentials are compromised.',
+      title: 'AI Agent Ready',
+      description: 'Give your AI agent a wallet it can use. Policy rules ensure it cannot exceed the boundaries you set.',
       icon: (
         <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
+          <path d="M12 2L2 7l10 5 10-5-10-5z" strokeLinejoin="round" />
+          <path d="M2 17l10 5 10-5" strokeLinejoin="round" />
+          <path d="M2 12l10 5 10-5" strokeLinejoin="round" />
         </svg>
       ),
     },
     {
-      title: 'Emergency Freeze',
-      description: 'One-click freeze. Instantly revoke all agent permissions. Your funds stay locked until you unlock.',
+      title: 'Live Demo',
+      description: 'Try the AI agent right now. Watch it execute transactions — and get blocked when it hits a policy limit.',
       icon: (
         <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-          <path d="M12 2L2 7l10 5 10-5-10-5z" strokeLinejoin="round" />
-          <path d="M12 22V12" strokeLinejoin="round" />
-          <path d="M20 12v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5" strokeLinejoin="round" />
-          <path d="M2 7l10 5 10-5" strokeLinejoin="round" />
+          <polygon points="5 3 19 12 5 21 5 3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ),
     },

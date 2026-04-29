@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
+import { HowItWorks } from '#/components/HowItWorks'
 
 export const Route = createFileRoute('/robot')({
   component: RobotPageFallback,
@@ -74,12 +75,13 @@ function RobotPageFallback() {
         </div>
       </section>
 
-      {/* Robot Scene - only renders after hero section (scroll progress > 0) */}
-      <div className="relative" style={{ height: '500vh' }}>
-        <div className="sticky top-0 h-screen">
-          <RobotSceneComponent />
-        </div>
+      {/* Robot Scene - scrolls away naturally like Hero */}
+      <div className="relative" style={{ height: '1200vh' }}>
+        <RobotSceneComponent />
       </div>
+
+      {/* How It Works Section */}
+      <HowItWorks />
     </div>
   )
 }

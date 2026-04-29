@@ -95,8 +95,28 @@ export function RobotScene() {
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY
-      const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
-      const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, scrollY / totalScrollable)) : 0
+      const viewportTop = scrollY
+      const viewportBottom = scrollY + window.innerHeight
+
+      // Container position tracking - solid check for when container leaves viewport
+      const containerTop = containerRef.current ? containerRef.current.getBoundingClientRect().top + scrollY : 0
+      const containerHeight = containerRef.current?.offsetHeight || 0
+      const containerBottom = containerTop + containerHeight
+
+      // Check if container is still in viewport
+      // Container is in view if: viewport bottom > container top AND viewport top < container bottom
+      const containerInView = viewportBottom > containerTop && viewportTop < containerBottom
+
+      // Calculate progress relative to container (0 = container top enters viewport, 1 = container bottom)
+      let containerProgress = 0
+      if (containerInView) {
+        const scrollIntoContainer = scrollY - containerTop
+        containerProgress = Math.max(0, Math.min(1, scrollIntoContainer / (containerHeight - window.innerHeight)))
+      }
+
+      // Use containerProgress for text animations (0 = container just enters, 1 = container fully passed)
+      // Also check if container is out of view to hide texts immediately
+      const progress = containerInView ? containerProgress : (scrollY > containerBottom ? 1 : 0)
 
       // Calculate the specific animation boundary so React doesn't re-render redundantly
       const newAnim = progress < 0.33 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
@@ -127,30 +147,35 @@ export function RobotScene() {
       }
 
       // Hardware-accelerated DOM manipulation for Text Layouts
+      // Only show texts when container is in view
       if (textsContainerRef.current) {
-        textsContainerRef.current.style.opacity = progress > 0.2 ? Math.min(1, (progress - 0.2) / 0.05).toString() : "0"
+        textsContainerRef.current.style.opacity = containerInView && progress > 0.2 ? Math.min(1, (progress - 0.2) / 0.05).toString() : "0"
       }
 
       if (text1Ref.current) {
         const text1Prog = progress < 0.2 ? 0 : progress < 0.33 ? (progress - 0.2) / 0.13 : progress < 0.5 ? 1 : progress < 0.6 ? 1 - (progress - 0.5) / 0.1 : 0
-        text1Ref.current.style.opacity = text1Prog.toString()
+        text1Ref.current.style.opacity = containerInView ? text1Prog.toString() : "0"
         text1Ref.current.style.transform = `translateY(${text1Prog * 80 - 80}px)`
-        text1Ref.current.style.pointerEvents = text1Prog > 0.05 ? 'auto' : 'none'
+        text1Ref.current.style.pointerEvents = text1Prog > 0.05 && containerInView ? 'auto' : 'none'
       }
 
       if (text2Ref.current) {
-        const text2Prog = progress < 0.5 ? 0 : progress < 0.66 ? (progress - 0.5) / 0.16 : progress < 0.85 ? 1 : progress < 0.95 ? 1 - (progress - 0.85) / 0.1 : 0
-        text2Ref.current.style.opacity = text2Prog.toString()
+        const text2Prog = progress < 0.5 ? 0 : progress < 0.6 ? (progress - 0.5) / 0.1 : progress < 0.75 ? 1 : progress < 0.85 ? 1 - (progress - 0.75) / 0.1 : 0
+        text2Ref.current.style.opacity = containerInView ? text2Prog.toString() : "0"
         text2Ref.current.style.transform = `translateY(${text2Prog * 80 - 80}px)`
-        text2Ref.current.style.pointerEvents = text2Prog > 0.05 ? 'auto' : 'none'
+        text2Ref.current.style.pointerEvents = text2Prog > 0.05 && containerInView ? 'auto' : 'none'
       }
 
       if (text3Ref.current) {
-        const text3Prog = progress < 0.85 ? 0 : progress < 0.95 ? (progress - 0.85) / 0.1 : 1
-        text3Ref.current.style.opacity = text3Prog.toString()
+        const text3Prog = progress < 0.85 ? 0 : progress < 0.90 ? (progress - 0.85) / 0.05 : progress < 0.99 ? 1 : 0
+        const text3Opacity = (!containerInView || progress >= 1.0) ? 0 : text3Prog
+        text3Ref.current.style.opacity = text3Opacity.toString()
         text3Ref.current.style.transform = `translateY(${text3Prog * 80 - 80}px)`
-        text3Ref.current.style.pointerEvents = text3Prog > 0.05 ? 'auto' : 'none'
+        text3Ref.current.style.pointerEvents = text3Prog > 0.05 && containerInView ? 'auto' : 'none'
       }
+
+      // Debug log
+      console.log(`[Scroll] containerInView: ${containerInView} | progress: ${progress.toFixed(3)} | viewportBottom: ${viewportBottom} | containerTop: ${containerTop}`)
     }
 
     // Call once initially to set the layout
@@ -164,8 +189,8 @@ export function RobotScene() {
   const cameraFov = isMobile ? 17 : 10
 
   return (
-    <div ref={containerRef} className="relative" style={{ height: '500vh', backgroundColor: 'rgb(2, 19, 15)' }}>
-      {/* Sticky 3D Canvas - stays visible while scrolling */}
+    <div ref={containerRef} className="relative w-full" style={{ height: '1200vh', backgroundColor: 'rgb(2, 19, 15)' }}>
+      {/* Sticky 3D Canvas - stays visible during scroll, releases when container passes */}
       <div className="sticky top-0 h-screen z-0">
         <Canvas
           dpr={1}
@@ -194,7 +219,7 @@ export function RobotScene() {
         </Canvas>
       </div>
 
-      {/* Vignette overlay */}
+      {/* Vignette overlay - stays fixed in viewport with sticky canvas */}
       <div
         className="fixed inset-0 pointer-events-none z-10"
         style={{
@@ -202,7 +227,7 @@ export function RobotScene() {
         }}
       />
 
-      {/* Scrollable Text Sections */}
+      {/* Scrollable Text Sections - stays fixed in viewport with sticky canvas */}
       <div ref={textsContainerRef} className="fixed inset-0 z-50 pointer-events-none" style={{ opacity: 0 }}>
         {/* Text 1 */}
         <div ref={text1Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '10%' }}>

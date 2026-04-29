@@ -1,5 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
+import { HowItWorks } from '#/components/HowItWorks'
+import { FeaturesGrid } from '#/components/FeaturesGrid'
+import { FinalCTA } from '#/components/FinalCTA'
 
 export const Route = createFileRoute('/robot')({
   component: RobotPageFallback,
@@ -7,7 +10,7 @@ export const Route = createFileRoute('/robot')({
 
 function RobotPageFallback() {
   const [RobotSceneComponent, setRobotSceneComponent] = useState<any>(null)
-  
+
   useEffect(() => {
     let mounted = true
     import('#/components/RobotScene').then(m => {
@@ -74,12 +77,19 @@ function RobotPageFallback() {
         </div>
       </section>
 
-      {/* Robot Scene - only renders after hero section (scroll progress > 0) */}
-      <div className="relative" style={{ height: '500vh' }}>
-        <div className="sticky top-0 h-screen">
-          <RobotSceneComponent />
-        </div>
+      {/* Robot Scene - scrolls away naturally like Hero */}
+      <div className="relative" style={{ height: '300vh' }}>
+        <RobotSceneComponent />
       </div>
+
+      {/* How It Works Section */}
+      <HowItWorks />
+
+      {/* Features Grid Section */}
+      <FeaturesGrid />
+
+      {/* Final CTA Section */}
+      <FinalCTA />
     </div>
   )
 }

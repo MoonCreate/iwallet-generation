@@ -48,8 +48,8 @@ export function HowItWorks() {
 
   return (
     <section id="how-it-works" className="py-24 md:py-32 px-6 relative bg-[#02130f]">
-      {/* Background gradient - extended to cover sticky canvas */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0a1f15] via-[#0d2318] to-[#02130f] min-h-[100vh]" />
+      {/* Gradient background at top - 10% opacity */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0d1d18]/10 to-[#02130f]" />
 
       <div className="relative z-10 max-w-5xl mx-auto">
         {/* Section header */}
@@ -97,27 +97,6 @@ export function HowItWorks() {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Bottom CTA */}
-        <div className="mt-16 text-center">
-          <p className="text-emerald-400/60 font-mono text-sm mb-6">
-            // ESTABLISHING_policy_CONNECTION
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="#get-started"
-              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
-            >
-              Deploy Your Agent Wallet
-            </a>
-            <a
-              href="#learn-more"
-              className="px-8 py-4 border border-emerald-500/40 hover:border-emerald-500 text-emerald-100 font-semibold rounded-lg transition-colors"
-            >
-              Read the Docs
-            </a>
-          </div>
         </div>
       </div>
     </section>

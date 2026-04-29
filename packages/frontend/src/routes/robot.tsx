@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { HowItWorks } from '#/components/HowItWorks'
+import { FeaturesGrid } from '#/components/FeaturesGrid'
+import { FinalCTA } from '#/components/FinalCTA'
 
 export const Route = createFileRoute('/robot')({
   component: RobotPageFallback,
@@ -82,6 +84,12 @@ function RobotPageFallback() {
 
       {/* How It Works Section */}
       <HowItWorks />
+
+      {/* Features Grid Section */}
+      <FeaturesGrid />
+
+      {/* Final CTA Section */}
+      <FinalCTA />
     </div>
   )
 }

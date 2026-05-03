@@ -1,5 +1,5 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAccount,
   useChainId,
@@ -22,6 +22,7 @@ import {
   IWALLET_FACTORY_ABI,
   getBackendUrl,
   getFactoryAddress,
+  chainName,
 } from "#/lib/contracts";
 
 export const Route = createFileRoute("/connect")({
@@ -37,91 +38,86 @@ const PROVISIONING_MESSAGE = "iWallet session bootstrap";
 const SALT =
   "0x0000000000000000000000000000000000000000000000000000000000000001" as `0x${string}`;
 
+const ERC20_ABI = parseAbi([
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+]);
+
+// ── Form types ──────────────────────────────────────────────────
+
+interface TokenRow {
+  address: string;
+  cap: string;          // human-readable amount
+  decimals: number;
+  symbol?: string;      // resolved on blur, display-only
+  fetching?: boolean;
+}
+
+type ExpiryPreset = "never" | "1h" | "1d" | "1w" | "1m" | "custom";
+
 interface PolicyForm {
-  initialDepositETH: string;
-  dailyETH: string;
-  allowedRecipients: string;
-  /**
-   * One token per line:
-   *   <address>,<dailyCap>[,<decimals>]
-   * decimals defaults to 18 if omitted.
-   * Example:
-   *   0xA0b8...eb48,100,6      # 100 USDC
-   *   0x0165...Eb8F,100        # 100 TST (18 decimals)
-   */
-  tokensRaw: string;
-  /** Comma- or newline-separated 0x addresses */
-  allowedSpenders: string;
+  initialDeposit: string;       // in native currency, e.g. "1"
+  dailyNative: string;          // session daily cap, native currency
+  recipients: string[];
+  tokens: TokenRow[];
+  spenders: string[];
   cooldownSeconds: string;
-  expiresAtUnix: string;
+  expiryPreset: ExpiryPreset;
+  expiryCustomLocal: string;    // ISO string from <input type="datetime-local">
 }
 
 const defaultForm: PolicyForm = {
-  initialDepositETH: "1",
-  dailyETH: "0.05",
-  allowedRecipients: "",
-  tokensRaw: "",
-  allowedSpenders: "",
+  initialDeposit: "1",
+  dailyNative: "0.05",
+  recipients: [],
+  tokens: [],
+  spenders: [],
   cooldownSeconds: "0",
-  expiresAtUnix: "0",
+  expiryPreset: "1w",
+  expiryCustomLocal: "",
 };
 
-function parseTokenLines(raw: string): {
-  tokens: `0x${string}`[];
-  caps: bigint[];
-  errors: string[];
-} {
-  const tokens: `0x${string}`[] = [];
-  const caps: bigint[] = [];
-  const errors: string[] = [];
-  for (const line of raw.split(/\n+/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const parts = trimmed.split(/\s*,\s*/);
-    const [addr, capStr, decStr] = parts;
-    if (!addr || !capStr) {
-      errors.push(`bad row: "${trimmed}"`);
-      continue;
-    }
-    if (!isAddress(addr)) {
-      errors.push(`not a valid address: ${addr}`);
-      continue;
-    }
-    const decimals = decStr ? Number(decStr) : 18;
-    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
-      errors.push(`bad decimals: ${decStr}`);
-      continue;
-    }
-    try {
-      caps.push(parseUnits(capStr, decimals));
-      tokens.push(addr as `0x${string}`);
-    } catch {
-      errors.push(`bad amount: ${capStr}`);
-    }
+const EXPIRY_PRESETS: Array<{ value: ExpiryPreset; label: string }> = [
+  { value: "never", label: "Never" },
+  { value: "1h", label: "1 hour" },
+  { value: "1d", label: "1 day" },
+  { value: "1w", label: "1 week" },
+  { value: "1m", label: "1 month" },
+  { value: "custom", label: "Custom date" },
+];
+
+function presetToUnix(form: PolicyForm): bigint {
+  if (form.expiryPreset === "never") return 0n;
+  if (form.expiryPreset === "custom") {
+    if (!form.expiryCustomLocal) return 0n;
+    const ms = new Date(form.expiryCustomLocal).getTime();
+    return Number.isFinite(ms) ? BigInt(Math.floor(ms / 1000)) : 0n;
   }
-  return { tokens, caps, errors };
+  const now = Math.floor(Date.now() / 1000);
+  const offset = {
+    "1h": 3600,
+    "1d": 86_400,
+    "1w": 86_400 * 7,
+    "1m": 86_400 * 30,
+  }[form.expiryPreset];
+  return BigInt(now + offset);
 }
 
-function parseAddressList(raw: string): {
-  addrs: `0x${string}`[];
-  errors: string[];
-} {
-  const addrs: `0x${string}`[] = [];
-  const errors: string[] = [];
-  for (const t of raw.split(/[\s,]+/)) {
-    const v = t.trim();
-    if (!v) continue;
-    if (!isAddress(v)) {
-      errors.push(`not a valid address: ${v}`);
-      continue;
-    }
-    addrs.push(v as `0x${string}`);
-  }
-  return { addrs, errors };
+function unixToPreset(
+  expiresAt: bigint
+): { preset: ExpiryPreset; customLocal: string } {
+  if (expiresAt === 0n) return { preset: "never", customLocal: "" };
+  const ms = Number(expiresAt) * 1000;
+  const isoLocal = new Date(ms - new Date().getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
+  return { preset: "custom", customLocal: isoLocal };
 }
+
+// ── Component ───────────────────────────────────────────────────
 
 function ConnectPage() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
   const chainId = useChainId();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
@@ -132,6 +128,8 @@ function ConnectPage() {
 
   const factory = getFactoryAddress(chainId);
   const factoryReady = factory && factory !== "0x0";
+
+  const nativeSymbol = chain?.nativeCurrency.symbol ?? "ETH";
 
   const [step, setStep] = useState<
     "idle" | "deploying" | "provisioning" | "registering" | "done" | "error"
@@ -146,6 +144,7 @@ function ConnectPage() {
   const [prefillState, setPrefillState] = useState<
     "idle" | "loading" | "loaded" | "no-existing"
   >("idle");
+  const [oauthReturnUri, setOauthReturnUri] = useState<string | null>(null);
 
   const { data: predicted } = useReadContract({
     address: factory as `0x${string}` | undefined,
@@ -155,8 +154,7 @@ function ConnectPage() {
     query: { enabled: !!factoryReady && !!address },
   });
 
-  // Pre-fill form from existing on-chain policy (so revisiting /connect
-  // is also "edit policy" UI).
+  // ── Pre-fill from existing session ────────────────────────────
   useEffect(() => {
     if (prefillState !== "idle") return;
     if (!predicted || !publicClient) return;
@@ -166,14 +164,11 @@ function ConnectPage() {
     (async () => {
       setPrefillState("loading");
       try {
-        // 1. Does the iWallet contract even exist yet?
         const code = await publicClient.getCode({ address: iWalletAddress });
         if (!code || code === "0x") {
           if (!cancelled) setPrefillState("no-existing");
           return;
         }
-        // 2. Find a known session for this iWallet via backend (it remembers
-        //    which session keys we've issued bearers for).
         const r = await fetch(
           `${getBackendUrl()}/api/wallet/sessions/${iWalletAddress}`
         );
@@ -192,7 +187,6 @@ function ConnectPage() {
           if (!cancelled) setPrefillState("no-existing");
           return;
         }
-        // 3. Read its policy on-chain.
         const policy = (await publicClient.readContract({
           address: iWalletAddress,
           abi: IWALLET_ABI,
@@ -213,43 +207,46 @@ function ConnectPage() {
           if (!cancelled) setPrefillState("no-existing");
           return;
         }
-        // 4. Look up decimals for each allowed token (parallel).
-        const erc20Abi = parseAbi([
-          "function decimals() view returns (uint8)",
-        ]);
-        const decimals = await Promise.all(
-          policy.allowedTokens.map((t) =>
-            publicClient
-              .readContract({
-                address: t,
-                abi: erc20Abi,
-                functionName: "decimals",
-              })
-              .then((d) => Number(d))
-              .catch(() => 18)
-          )
-        );
-        // 5. Format back into form fields.
-        const tokensRaw = policy.allowedTokens
-          .map((t, i) => {
-            const dec = decimals[i] ?? 18;
-            const human = formatUnits(policy.tokenDailyLimits[i] ?? 0n, dec);
-            return dec === 18 ? `${t},${human}` : `${t},${human},${dec}`;
+        const meta = await Promise.all(
+          policy.allowedTokens.map(async (t) => {
+            const [decimals, symbol] = await Promise.all([
+              publicClient
+                .readContract({
+                  address: t,
+                  abi: ERC20_ABI,
+                  functionName: "decimals",
+                })
+                .then((d) => Number(d))
+                .catch(() => 18),
+              publicClient
+                .readContract({
+                  address: t,
+                  abi: ERC20_ABI,
+                  functionName: "symbol",
+                })
+                .catch(() => undefined),
+            ]);
+            return { decimals, symbol };
           })
-          .join("\n");
-        if (cancelled) return;
-        setForm((prev) => ({
-          ...prev,
-          // keep depositETH as user-set (already-funded iWallet doesn't need
-          // a refill by default)
-          initialDepositETH: "0",
-          dailyETH: formatEther(policy.dailyETHLimit),
-          allowedRecipients: policy.allowedContracts.join(", "),
-          tokensRaw,
-          allowedSpenders: policy.allowedSpenders.join(", "),
-          cooldownSeconds: policy.cooldownSeconds.toString(),
-          expiresAtUnix: policy.expiresAt.toString(),
+        );
+        const tokens: TokenRow[] = policy.allowedTokens.map((addr, i) => ({
+          address: addr,
+          cap: formatUnits(policy.tokenDailyLimits[i] ?? 0n, meta[i].decimals),
+          decimals: meta[i].decimals,
+          symbol: meta[i].symbol,
         }));
+        const expiry = unixToPreset(policy.expiresAt);
+        if (cancelled) return;
+        setForm({
+          initialDeposit: "0",
+          dailyNative: formatEther(policy.dailyETHLimit),
+          recipients: [...policy.allowedContracts],
+          tokens,
+          spenders: [...policy.allowedSpenders],
+          cooldownSeconds: policy.cooldownSeconds.toString(),
+          expiryPreset: expiry.preset,
+          expiryCustomLocal: expiry.customLocal,
+        });
         setPrefillState("loaded");
       } catch (e) {
         console.error("prefill failed:", e);
@@ -262,12 +259,76 @@ function ConnectPage() {
     };
   }, [predicted, publicClient, prefillState]);
 
+  // ── Token row helpers ─────────────────────────────────────────
+
+  async function fetchTokenMeta(rowIndex: number) {
+    const row = form.tokens[rowIndex];
+    if (!row || !publicClient) return;
+    if (!isAddress(row.address)) return;
+    setForm((f) => ({
+      ...f,
+      tokens: f.tokens.map((r, i) =>
+        i === rowIndex ? { ...r, fetching: true } : r
+      ),
+    }));
+    try {
+      const [decimals, symbol] = await Promise.all([
+        publicClient
+          .readContract({
+            address: row.address as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          })
+          .then((d) => Number(d))
+          .catch(() => 18),
+        publicClient
+          .readContract({
+            address: row.address as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: "symbol",
+          })
+          .catch(() => undefined),
+      ]);
+      setForm((f) => ({
+        ...f,
+        tokens: f.tokens.map((r, i) =>
+          i === rowIndex
+            ? { ...r, decimals, symbol, fetching: false }
+            : r
+        ),
+      }));
+    } catch {
+      setForm((f) => ({
+        ...f,
+        tokens: f.tokens.map((r, i) =>
+          i === rowIndex ? { ...r, fetching: false } : r
+        ),
+      }));
+    }
+  }
+
+  // ── Submit ────────────────────────────────────────────────────
+
   const handleSetup = async () => {
     if (!address || !factory || !walletClient || !publicClient) return;
     setStep("deploying");
     setErrMsg(null);
     try {
-      // Compute predicted iWallet address
+      // Validate addresses up-front
+      for (const r of form.recipients) {
+        if (!isAddress(r))
+          throw new Error(`Recipient is not a valid address: ${r}`);
+      }
+      for (const s of form.spenders) {
+        if (!isAddress(s))
+          throw new Error(`Spender is not a valid address: ${s}`);
+      }
+      for (const t of form.tokens) {
+        if (!isAddress(t.address))
+          throw new Error(`Token is not a valid address: ${t.address}`);
+        if (!t.cap) throw new Error(`Missing cap for ${t.address}`);
+      }
+
       const iWalletAddress = (await publicClient.readContract({
         address: factory,
         abi: IWALLET_FACTORY_ABI,
@@ -287,8 +348,8 @@ function ConnectPage() {
         await publicClient.waitForTransactionReceipt({ hash: deployHash });
       }
 
-      // Deposit ETH into the iWallet so it has funds to spend.
-      const depositAmount = parseEther(form.initialDepositETH || "0");
+      // Deposit
+      const depositAmount = parseEther(form.initialDeposit || "0");
       if (depositAmount > 0n) {
         const currentBalance = await publicClient.getBalance({
           address: iWalletAddress,
@@ -314,40 +375,34 @@ function ConnectPage() {
           index: 0,
           iWalletAddress,
           chainId,
-          label: "Claude Code session",
+          label: "Agent session",
         }),
       });
-      if (!provRes.ok) throw new Error(`provision failed: ${provRes.status}`);
+      if (!provRes.ok)
+        throw new Error(`Provision failed: ${provRes.status}`);
       const prov = (await provRes.json()) as {
         bearerToken: string;
         sessionAddress: `0x${string}`;
       };
 
       setStep("registering");
-      const recParse = parseAddressList(form.allowedRecipients);
-      const tokParse = parseTokenLines(form.tokensRaw);
-      const spenParse = parseAddressList(form.allowedSpenders);
-      const allErrs = [
-        ...recParse.errors.map((e) => `recipients: ${e}`),
-        ...tokParse.errors.map((e) => `tokens: ${e}`),
-        ...spenParse.errors.map((e) => `spenders: ${e}`),
-      ];
-      if (allErrs.length > 0) {
-        throw new Error(allErrs.join("\n"));
-      }
+      const allowedTokens = form.tokens.map(
+        (t) => t.address as `0x${string}`
+      );
+      const tokenDailyLimits = form.tokens.map((t) =>
+        parseUnits(t.cap, t.decimals)
+      );
       const policy = {
-        dailyETHLimit: parseEther(form.dailyETH),
-        allowedTokens: tokParse.tokens,
-        tokenDailyLimits: tokParse.caps,
-        allowedContracts: recParse.addrs,
-        allowedSpenders: spenParse.addrs,
+        dailyETHLimit: parseEther(form.dailyNative),
+        allowedTokens,
+        tokenDailyLimits,
+        allowedContracts: form.recipients as `0x${string}`[],
+        allowedSpenders: form.spenders as `0x${string}`[],
         cooldownSeconds: BigInt(form.cooldownSeconds),
         maxGasPerTx: 0n,
-        expiresAt: BigInt(form.expiresAtUnix),
+        expiresAt: presetToUnix(form),
         active: false,
       };
-      // If this session is already registered, update its policy instead
-      // of trying to add it again (addSession reverts on existing).
       const existing = (await publicClient.readContract({
         address: iWalletAddress,
         abi: IWALLET_ABI,
@@ -359,7 +414,7 @@ function ConnectPage() {
         abi: IWALLET_ABI,
         functionName: existing ? "updateSessionPolicy" : "addSession",
         args: [prov.sessionAddress, policy],
-        gas: 500_000n,
+        gas: 800_000n,
       });
       await publicClient.waitForTransactionReceipt({ hash: addHash });
 
@@ -370,10 +425,6 @@ function ConnectPage() {
       });
       setStep("done");
 
-      // If we got here as part of an OAuth flow (Claude Code redirected
-      // here with ?oauth=1&auth_id=...), complete the handoff: send the
-      // bearer to the backend, get an auth_code-bearing redirect URL,
-      // then bounce the user-agent there.
       if (isOAuth && search.auth_id) {
         const completeRes = await fetch(
           `${getBackendUrl()}/oauth/authorize/complete`,
@@ -386,12 +437,13 @@ function ConnectPage() {
             }),
           }
         );
-        if (!completeRes.ok) {
+        if (!completeRes.ok)
           throw new Error(`OAuth complete failed: ${completeRes.status}`);
-        }
         const data = (await completeRes.json()) as { redirect_uri: string };
-        // Hand control back to the MCP client
-        window.location.href = data.redirect_uri;
+        // Don't auto-redirect — surface a "Return to MCP client" button so
+        // the user actually gets to see the tutorials (and add this same
+        // session to other clients) before bouncing back.
+        setOauthReturnUri(data.redirect_uri);
       }
     } catch (e) {
       console.error(e);
@@ -400,18 +452,26 @@ function ConnectPage() {
     }
   };
 
-  const mcpAddCommand = out
-    ? `claude mcp add iwallet ${getBackendUrl()}/mcp --transport http --header "Authorization: Bearer ${out.bearerToken}"`
-    : "";
+  // ── Computed ──────────────────────────────────────────────────
+
+  const mcpUrl = `${getBackendUrl()}/mcp`;
+
+  const expiryRel = useMemo(() => {
+    const u = presetToUnix(form);
+    if (u === 0n) return "Never expires";
+    return `Expires ${new Date(Number(u) * 1000).toLocaleString()}`;
+  }, [form]);
+
+  // ── Render ────────────────────────────────────────────────────
 
   return (
     <main className="page-wrap mx-auto max-w-3xl px-4 py-12">
       <h1 className="display-title mb-2 text-3xl font-bold">
-        Connect Claude Code to your iWallet
+        Connect an AI agent to your iWallet
       </h1>
       <p className="island-kicker mb-2">
-        Sign a message → get a scoped session your AI agent can use, bounded
-        by an on-chain policy you control.
+        Sign once → get a session credential any MCP-speaking client (Claude,
+        Cursor, custom bots) can use, capped by an on-chain policy you control.
       </p>
       {isOAuth && (
         <p className="mb-6 inline-block rounded-full bg-[var(--lagoon-deep)]/10 px-3 py-1 text-xs font-semibold text-[var(--lagoon-deep)]">
@@ -430,30 +490,21 @@ function ConnectPage() {
       {isConnected && !factoryReady && (
         <div className="island-shell rounded-2xl p-6 space-y-3">
           <p className="font-semibold">
-            iWalletFactory isn't deployed on the chain your wallet is on
-            (chainId <code>{chainId ?? "?"}</code>).
+            iWalletFactory isn't deployed on{" "}
+            <strong>{chainName(chainId)}</strong> (chain {chainId}).
           </p>
           <p className="text-sm">
-            For this local demo, switch to the <strong>Hardhat</strong>{" "}
-            network (chainId <code>31337</code>, RPC{" "}
-            <code>http://127.0.0.1:8545</code>). You can pick it from your
-            wallet directly:
+            Switch your wallet to <strong>0G Galileo Testnet</strong>:
           </p>
           <appkit-network-button />
-          <p className="text-xs opacity-70">
-            If your wallet doesn't list Hardhat yet, add it manually with
-            chainId 31337, RPC <code>http://127.0.0.1:8545</code>, currency
-            ETH. Then import a funded account using one of the private keys
-            printed by <code>hardhat node</code> (e.g. account #0).
-          </p>
         </div>
       )}
 
       {isConnected && factoryReady && step !== "done" && (
-        <div className="island-shell rounded-2xl p-6 space-y-4">
+        <div className="island-shell rounded-2xl p-6 space-y-5">
           <div className="space-y-2">
             <label className="block text-sm font-semibold">
-              Predicted iWallet address
+              Predicted iWallet address on {chainName(chainId)}
             </label>
             <code className="block rounded bg-black/10 p-2 text-xs">
               {(predicted as string) ?? "—"}
@@ -463,8 +514,8 @@ function ConnectPage() {
             )}
             {prefillState === "loaded" && (
               <p className="text-xs text-[var(--lagoon-deep)]">
-                Editing existing policy (all fields pre-filled). Submit to
-                update on-chain via <code>updateSessionPolicy</code>.
+                Editing existing policy. Submitting will call{" "}
+                <code>updateSessionPolicy</code>.
               </p>
             )}
             {prefillState === "no-existing" && (
@@ -475,138 +526,659 @@ function ConnectPage() {
             )}
           </div>
 
-          <h2 className="text-lg font-semibold pt-2">Initial deposit</h2>
-          <label className="block text-sm">
-            ETH to deposit into iWallet (the wallet has 0 ETH until you fund it)
+          <Section title={`Initial deposit (${nativeSymbol})`}>
             <input
-              value={form.initialDepositETH}
+              value={form.initialDeposit}
               onChange={(e) =>
-                setForm({ ...form, initialDepositETH: e.target.value })
+                setForm({ ...form, initialDeposit: e.target.value })
               }
-              className="mt-1 w-full rounded border px-2 py-1"
+              className="w-full rounded border px-3 py-2"
+              placeholder="0"
             />
-          </label>
+            <Help>
+              {nativeSymbol} to send from your wallet to the iWallet at setup.
+              Needed for the agent to spend native currency. Set 0 if already
+              funded.
+            </Help>
+          </Section>
 
-          <h2 className="text-lg font-semibold pt-2">Session policy</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              Daily ETH cap (per session)
-              <input
-                value={form.dailyETH}
-                onChange={(e) =>
-                  setForm({ ...form, dailyETH: e.target.value })
-                }
-                className="mt-1 w-full rounded border px-2 py-1"
-              />
-            </label>
-            <label className="text-sm">
-              Cooldown (seconds)
-              <input
-                value={form.cooldownSeconds}
-                onChange={(e) =>
-                  setForm({ ...form, cooldownSeconds: e.target.value })
-                }
-                className="mt-1 w-full rounded border px-2 py-1"
-              />
-            </label>
-            <label className="sm:col-span-2 text-sm">
-              Allowed recipients (comma-separated 0x addresses; empty = any
-              address allowed within ETH cap)
-              <input
-                value={form.allowedRecipients}
-                onChange={(e) =>
-                  setForm({ ...form, allowedRecipients: e.target.value })
-                }
-                placeholder="0x… , 0x…"
-                className="mt-1 w-full rounded border px-2 py-1"
-              />
-            </label>
-            <label className="sm:col-span-2 text-sm">
-              Allowed tokens & per-token daily caps — one per line, format{" "}
-              <code className="text-xs">address,humanAmount[,decimals]</code>{" "}
-              (decimals defaults to 18)
-              <textarea
-                value={form.tokensRaw}
-                onChange={(e) =>
-                  setForm({ ...form, tokensRaw: e.target.value })
-                }
-                rows={3}
-                placeholder={
-                  "0x0165878A594ca255338adfa4d48449f69242Eb8F,100\n0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,50,6"
-                }
-                className="mt-1 w-full rounded border px-2 py-1 font-mono text-xs"
-              />
-            </label>
-            <label className="sm:col-span-2 text-sm">
-              Allowed approve spenders (comma- or newline-separated 0x
-              addresses; empty = approvals disallowed)
-              <textarea
-                value={form.allowedSpenders}
-                onChange={(e) =>
-                  setForm({ ...form, allowedSpenders: e.target.value })
-                }
-                rows={2}
-                placeholder="0x… , 0x…"
-                className="mt-1 w-full rounded border px-2 py-1 font-mono text-xs"
-              />
-            </label>
-            <label className="sm:col-span-2 text-sm">
-              Expires at (unix seconds, 0 = never)
-              <input
-                value={form.expiresAtUnix}
-                onChange={(e) =>
-                  setForm({ ...form, expiresAtUnix: e.target.value })
-                }
-                className="mt-1 w-full rounded border px-2 py-1"
-              />
-            </label>
-          </div>
+          <Section title="Daily caps">
+            <div className="space-y-3">
+              <label className="block text-sm">
+                <span className="font-medium">
+                  Daily {nativeSymbol} cap
+                </span>
+                <input
+                  value={form.dailyNative}
+                  onChange={(e) =>
+                    setForm({ ...form, dailyNative: e.target.value })
+                  }
+                  className="mt-1 w-full rounded border px-3 py-2"
+                />
+              </label>
+
+              <div>
+                <p className="text-sm font-medium mb-2">
+                  ERC20 daily caps
+                </p>
+                {form.tokens.map((row, i) => (
+                  <TokenInputRow
+                    key={i}
+                    row={row}
+                    nativeSymbol={nativeSymbol}
+                    onChange={(patch) =>
+                      setForm((f) => ({
+                        ...f,
+                        tokens: f.tokens.map((r, j) =>
+                          j === i ? { ...r, ...patch } : r
+                        ),
+                      }))
+                    }
+                    onResolve={() => fetchTokenMeta(i)}
+                    onRemove={() =>
+                      setForm((f) => ({
+                        ...f,
+                        tokens: f.tokens.filter((_, j) => j !== i),
+                      }))
+                    }
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      tokens: [
+                        ...f.tokens,
+                        { address: "", cap: "", decimals: 18 },
+                      ],
+                    }))
+                  }
+                  className="mt-1 rounded border border-dashed px-3 py-1.5 text-xs"
+                >
+                  + Add token
+                </button>
+                <Help>
+                  Per-token daily limits. Decimals/symbol are auto-fetched from
+                  the contract once you paste the address.
+                </Help>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Allowed targets">
+            <AddressList
+              label={`Recipients of ${nativeSymbol} (empty = any address allowed within the daily cap)`}
+              addresses={form.recipients}
+              onChange={(recipients) => setForm({ ...form, recipients })}
+              addLabel="+ Add recipient"
+              placeholder="0x…"
+            />
+            <div className="h-4" />
+            <AddressList
+              label="Approve spenders (token approvals are blocked unless the spender is here; required for DEX routers, Permit2, etc.)"
+              addresses={form.spenders}
+              onChange={(spenders) => setForm({ ...form, spenders })}
+              addLabel="+ Add spender"
+              placeholder="0x…"
+            />
+          </Section>
+
+          <Section title="Lifecycle">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm">
+                <span className="font-medium">Cooldown (seconds)</span>
+                <input
+                  value={form.cooldownSeconds}
+                  onChange={(e) =>
+                    setForm({ ...form, cooldownSeconds: e.target.value })
+                  }
+                  className="mt-1 w-full rounded border px-3 py-2"
+                />
+                <Help>
+                  Minimum delay between transactions, applied per session.
+                </Help>
+              </label>
+              <label className="text-sm">
+                <span className="font-medium">Session expires</span>
+                <select
+                  value={form.expiryPreset}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      expiryPreset: e.target.value as ExpiryPreset,
+                    })
+                  }
+                  className="mt-1 w-full rounded border px-3 py-2"
+                >
+                  {EXPIRY_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+                {form.expiryPreset === "custom" && (
+                  <input
+                    type="datetime-local"
+                    value={form.expiryCustomLocal}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        expiryCustomLocal: e.target.value,
+                      })
+                    }
+                    className="mt-2 w-full rounded border px-3 py-2"
+                  />
+                )}
+                <Help>{expiryRel}</Help>
+              </label>
+            </div>
+          </Section>
 
           <button
             type="button"
             onClick={handleSetup}
             disabled={step !== "idle" && step !== "error"}
-            className="rounded-full bg-[var(--lagoon-deep)] px-5 py-2 font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-full bg-[var(--lagoon-deep)] px-5 py-3 font-semibold text-white disabled:opacity-50"
           >
             {step === "idle" || step === "error"
-              ? "Provision session"
+              ? prefillState === "loaded"
+                ? "Update policy & rotate token"
+                : "Deploy iWallet & provision session"
               : step === "deploying"
                 ? "Deploying iWallet…"
                 : step === "provisioning"
                   ? "Signing & provisioning…"
-                  : "Registering session…"}
+                  : "Registering session on-chain…"}
           </button>
 
           {errMsg && (
-            <p className="text-sm text-red-600 break-words">{errMsg}</p>
+            <p className="text-sm text-red-700 break-words whitespace-pre-line">
+              {errMsg}
+            </p>
           )}
         </div>
       )}
 
       {step === "done" && out && (
-        <div className="island-shell rounded-2xl p-6 space-y-4">
+        <div className="island-shell rounded-2xl p-6 space-y-5">
           <h2 className="text-xl font-semibold">Session active</h2>
-          <p className="text-sm">
-            Add the iwallet MCP to Claude Code (or any MCP client):
-          </p>
-          <pre className="overflow-x-auto rounded bg-black/10 p-3 text-xs">
-            {mcpAddCommand}
-          </pre>
+
+          {oauthReturnUri && (
+            <div className="rounded-xl border border-[var(--lagoon-deep)]/40 bg-[var(--lagoon-deep)]/5 p-4 space-y-3">
+              <p className="text-sm font-semibold">
+                Your MCP client is waiting to receive the token.
+              </p>
+              <p className="text-xs opacity-70">
+                Return now to hand the bearer back automatically — or stay on
+                this page first to also add this iWallet to other clients
+                (Cursor, Codex, VS Code…). The auth code below is single-use
+                and will expire in a few minutes.
+              </p>
+              <a
+                href={oauthReturnUri}
+                className="inline-block rounded-full bg-[var(--lagoon-deep)] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Return to MCP client →
+              </a>
+            </div>
+          )}
+
+          <div className="space-y-1 text-xs">
+            <div>
+              <span className="font-medium">iWallet:</span>{" "}
+              <code className="break-all">{out.iWalletAddress}</code>
+            </div>
+            <div>
+              <span className="font-medium">Session:</span>{" "}
+              <code className="break-all">{out.sessionAddress}</code>
+            </div>
+            <div>
+              <span className="font-medium">Bearer:</span>{" "}
+              <code className="break-all">{out.bearerToken}</code>
+            </div>
+          </div>
+
+          <ClientTutorials
+            mcpUrl={mcpUrl}
+            bearerToken={out.bearerToken}
+          />
+
           <p className="text-xs opacity-70">
-            iWallet:{" "}
-            <code className="break-all">{out.iWalletAddress}</code>
-            <br />
-            Session: <code className="break-all">{out.sessionAddress}</code>
-            <br />
-            Bearer:{" "}
-            <code className="break-all">{out.bearerToken}</code>
-          </p>
-          <p className="text-sm">
-            Don't forget to send a small amount of ETH to{" "}
-            <code className="break-all">{out.sessionAddress}</code> for gas.
+            Don't forget: send a tiny amount of {nativeSymbol} to the session
+            address (<code className="break-all">{out.sessionAddress}</code>)
+            so it can pay gas to call{" "}
+            <code>iWallet.execute()</code>.
           </p>
         </div>
       )}
     </main>
+  );
+}
+
+// ── Subcomponents ───────────────────────────────────────────────
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h2 className="text-base font-semibold mb-2">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function Help({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs opacity-60 mt-1">{children}</p>;
+}
+
+function TokenInputRow({
+  row,
+  nativeSymbol,
+  onChange,
+  onResolve,
+  onRemove,
+}: {
+  row: TokenRow;
+  nativeSymbol: string;
+  onChange: (patch: Partial<TokenRow>) => void;
+  onResolve: () => void;
+  onRemove: () => void;
+}) {
+  const valid = isAddress(row.address);
+  return (
+    <div className="mb-2 grid grid-cols-[1fr_auto_auto_auto] gap-2 items-start">
+      <input
+        value={row.address}
+        onChange={(e) => onChange({ address: e.target.value })}
+        onBlur={() => valid && !row.symbol && onResolve()}
+        placeholder="0x… token address"
+        className="rounded border px-2 py-1.5 text-xs font-mono"
+      />
+      <input
+        value={row.cap}
+        onChange={(e) => onChange({ cap: e.target.value })}
+        placeholder="cap"
+        className="w-24 rounded border px-2 py-1.5 text-xs"
+      />
+      <span className="self-center text-xs opacity-70 min-w-[2.5rem]">
+        {row.fetching
+          ? "…"
+          : row.symbol
+            ? row.symbol
+            : valid
+              ? "?"
+              : ""}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded border px-2 py-1 text-xs opacity-70 hover:opacity-100"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+function AddressList({
+  label,
+  addresses,
+  onChange,
+  addLabel,
+  placeholder,
+}: {
+  label: string;
+  addresses: string[];
+  onChange: (next: string[]) => void;
+  addLabel: string;
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-medium mb-2">{label}</p>
+      {addresses.map((a, i) => (
+        <div
+          key={i}
+          className="mb-2 grid grid-cols-[1fr_auto] gap-2"
+        >
+          <input
+            value={a}
+            onChange={(e) => {
+              const next = [...addresses];
+              next[i] = e.target.value;
+              onChange(next);
+            }}
+            placeholder={placeholder}
+            className="rounded border px-2 py-1.5 text-xs font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => onChange(addresses.filter((_, j) => j !== i))}
+            className="rounded border px-2 py-1 text-xs opacity-70 hover:opacity-100"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...addresses, ""])}
+        className="rounded border border-dashed px-3 py-1.5 text-xs"
+      >
+        {addLabel}
+      </button>
+    </div>
+  );
+}
+
+// ── Per-client tutorials ────────────────────────────────────────
+
+interface TutorialContent {
+  key: string;
+  label: string;
+  oauthAvailable: boolean;
+  oauthSnippet?: { lang: string; code: string };
+  manualSnippet: { lang: string; code: string; configPath?: string };
+  notes?: React.ReactNode;
+}
+
+function buildTutorials(
+  mcpUrl: string,
+  bearerToken: string
+): TutorialContent[] {
+  const bearer = `Authorization: Bearer ${bearerToken}`;
+
+  const claudeCodeOAuth = `claude mcp add iwallet --transport http ${mcpUrl}`;
+  const claudeCodeManual = `claude mcp add iwallet --transport http ${mcpUrl} \\
+  --header "${bearer}"`;
+
+  const claudeDesktopOAuth = JSON.stringify(
+    {
+      mcpServers: {
+        iwallet: { type: "http", url: mcpUrl },
+      },
+    },
+    null,
+    2
+  );
+  const claudeDesktopManual = JSON.stringify(
+    {
+      mcpServers: {
+        iwallet: {
+          type: "http",
+          url: mcpUrl,
+          headers: { Authorization: `Bearer ${bearerToken}` },
+        },
+      },
+    },
+    null,
+    2
+  );
+
+  const cursorJson = JSON.stringify(
+    {
+      mcpServers: {
+        iwallet: {
+          url: mcpUrl,
+          headers: { Authorization: `Bearer ${bearerToken}` },
+        },
+      },
+    },
+    null,
+    2
+  );
+
+  const codexToml = `[mcp_servers.iwallet]
+command = "npx"
+args = [
+  "-y",
+  "mcp-remote",
+  "${mcpUrl}",
+  "--header",
+  "${bearer}"
+]
+`;
+
+  const vscodeJson = JSON.stringify(
+    {
+      servers: {
+        iwallet: {
+          type: "http",
+          url: mcpUrl,
+          headers: { Authorization: `Bearer ${bearerToken}` },
+        },
+      },
+    },
+    null,
+    2
+  );
+
+  const curlExample = `curl -i -X POST ${mcpUrl} \\
+  -H "Content-Type: application/json" \\
+  -H "${bearer}" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
+
+  return [
+    {
+      key: "claude-code",
+      label: "Claude Code",
+      oauthAvailable: true,
+      oauthSnippet: { lang: "bash", code: claudeCodeOAuth },
+      manualSnippet: { lang: "bash", code: claudeCodeManual },
+      notes: (
+        <>
+          The OAuth version is preferred — first tool call returns 401, Claude
+          Code prompts you, you confirm in the browser, token flows back
+          automatically.
+        </>
+      ),
+    },
+    {
+      key: "claude-desktop",
+      label: "Claude Desktop",
+      oauthAvailable: true,
+      oauthSnippet: {
+        lang: "json",
+        code: claudeDesktopOAuth,
+      },
+      manualSnippet: {
+        lang: "json",
+        code: claudeDesktopManual,
+        configPath:
+          "~/Library/Application Support/Claude/claude_desktop_config.json (macOS) · %APPDATA%\\Claude\\claude_desktop_config.json (Windows)",
+      },
+      notes: (
+        <>
+          Edit <code>claude_desktop_config.json</code> and merge into the
+          existing <code>mcpServers</code> object. Restart Claude Desktop.
+        </>
+      ),
+    },
+    {
+      key: "cursor",
+      label: "Cursor",
+      oauthAvailable: false,
+      manualSnippet: {
+        lang: "json",
+        code: cursorJson,
+        configPath: ".cursor/mcp.json (project) · ~/.cursor/mcp.json (global)",
+      },
+      notes: (
+        <>
+          Cursor reads MCP servers from its config files. After saving, open
+          the Composer or chat panel and the iwallet tools appear.
+        </>
+      ),
+    },
+    {
+      key: "codex",
+      label: "Codex CLI",
+      oauthAvailable: false,
+      manualSnippet: {
+        lang: "toml",
+        code: codexToml,
+        configPath: "~/.codex/config.toml",
+      },
+      notes: (
+        <>
+          OpenAI Codex CLI uses stdio MCP transport. We bridge to the remote
+          HTTP endpoint via the official <code>mcp-remote</code> shim — npx
+          runs it on demand. No global install needed.
+        </>
+      ),
+    },
+    {
+      key: "vscode",
+      label: "VS Code Copilot",
+      oauthAvailable: false,
+      manualSnippet: {
+        lang: "json",
+        code: vscodeJson,
+        configPath: ".vscode/mcp.json (project) · settings.json (global, under mcp.servers)",
+      },
+      notes: (
+        <>
+          Requires GitHub Copilot Chat with MCP enabled. The Copilot Chat side
+          panel should list iwallet's tools after the file is saved.
+        </>
+      ),
+    },
+    {
+      key: "curl",
+      label: "Raw / curl",
+      oauthAvailable: false,
+      manualSnippet: { lang: "bash", code: curlExample },
+      notes: (
+        <>
+          For testing or building your own MCP client. POST JSON-RPC 2.0 to
+          the URL with the bearer header. <code>tools/list</code>,{" "}
+          <code>tools/call</code>, <code>initialize</code> are the relevant
+          methods.
+        </>
+      ),
+    },
+  ];
+}
+
+function ClientTutorials({
+  mcpUrl,
+  bearerToken,
+}: {
+  mcpUrl: string;
+  bearerToken: string;
+}) {
+  const tutorials = useMemo(
+    () => buildTutorials(mcpUrl, bearerToken),
+    [mcpUrl, bearerToken]
+  );
+  const [active, setActive] = useState(tutorials[0]?.key ?? "");
+  const [mode, setMode] = useState<"oauth" | "manual">("oauth");
+
+  const current = tutorials.find((t) => t.key === active) ?? tutorials[0];
+  const useOAuth = mode === "oauth" && current.oauthAvailable && current.oauthSnippet;
+  const snippet = useOAuth ? current.oauthSnippet! : current.manualSnippet;
+
+  return (
+    <div>
+      <p className="text-sm font-semibold mb-1">
+        Plug into your MCP client
+      </p>
+      <p className="text-xs opacity-70 mb-3">
+        iWallet exposes a streamable-HTTP MCP server with OAuth 2.1
+        discovery. Pick your client below — clients that support OAuth can
+        skip pasting the bearer.
+      </p>
+
+      <div className="flex flex-wrap gap-1 mb-2">
+        {tutorials.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => {
+              setActive(t.key);
+              if (!t.oauthAvailable) setMode("manual");
+            }}
+            className={`rounded-full px-3 py-1 text-xs ${
+              active === t.key
+                ? "bg-[var(--lagoon-deep)] text-white"
+                : "border opacity-70 hover:opacity-100"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {current.oauthAvailable && (
+        <div className="flex gap-1 mb-2 text-xs">
+          <button
+            type="button"
+            onClick={() => setMode("oauth")}
+            className={`rounded px-2 py-0.5 ${
+              mode === "oauth"
+                ? "bg-[var(--lagoon-deep)]/20 text-[var(--lagoon-deep)] font-semibold"
+                : "opacity-60 hover:opacity-100"
+            }`}
+          >
+            ✓ OAuth (preferred)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("manual")}
+            className={`rounded px-2 py-0.5 ${
+              mode === "manual"
+                ? "bg-[var(--lagoon-deep)]/20 text-[var(--lagoon-deep)] font-semibold"
+                : "opacity-60 hover:opacity-100"
+            }`}
+          >
+            Bearer (manual)
+          </button>
+        </div>
+      )}
+
+      {snippet.configPath && (
+        <p className="text-[10px] uppercase tracking-wide opacity-60 mb-1">
+          {snippet.configPath}
+        </p>
+      )}
+
+      <CodeBlock lang={snippet.lang} code={snippet.code} />
+
+      {current.notes && (
+        <p className="text-xs opacity-70 mt-2">{current.notes}</p>
+      )}
+    </div>
+  );
+}
+
+function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
+  return (
+    <div className="relative">
+      <pre className="overflow-x-auto rounded bg-black/10 p-3 text-xs whitespace-pre-wrap break-all">
+        {code}
+      </pre>
+      <button
+        type="button"
+        onClick={onCopy}
+        className="absolute right-2 top-2 rounded bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-[var(--lagoon-deep)] shadow"
+        aria-label={`copy ${lang}`}
+      >
+        {copied ? "copied" : "copy"}
+      </button>
+    </div>
   );
 }

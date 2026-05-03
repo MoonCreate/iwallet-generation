@@ -1,26 +1,55 @@
-import { localhost, zeroGTestnet, zeroGMainnet } from "@iwallet/chains";
-export { POLICY_PROXY_ABI, POLICY_REGISTRY_ABI } from "@iwallet/chains";
+import {
+  localhost,
+  zeroGTestnet,
+  zeroGMainnet,
+  getFactoryAddressForChain,
+} from "@iwallet/chains";
+export {
+  IWALLET_ABI,
+  IWALLET_FACTORY_ABI,
+  SUPPORTED_CHAINS,
+} from "@iwallet/chains";
 
 /**
- * Get the PolicyRegistry proxy address for the current environment.
- * Priority: VITE_REGISTRY_ADDRESS env var > chain contract definition
+ * Address of the iWalletFactory for the connected chain.
+ * Local-dev override: VITE_FACTORY_ADDRESS — only applies on chain 31337.
  */
-export function getRegistryAddress(
+export function getFactoryAddress(
   chainId: number | undefined
 ): `0x${string}` | undefined {
-  // Env override — set this after deploying locally
-  const envAddr = import.meta.env.VITE_REGISTRY_ADDRESS;
-  if (envAddr && envAddr !== "0x0") return envAddr as `0x${string}`;
+  if (chainId === undefined) return undefined;
+  if (chainId === localhost.id) {
+    const envAddr = import.meta.env.VITE_FACTORY_ADDRESS;
+    if (envAddr && envAddr !== "0x0") return envAddr as `0x${string}`;
+  }
+  return getFactoryAddressForChain(chainId);
+}
 
-  // Fall back to chain-embedded addresses
+export const SUPPORTED_CHAIN_IDS = {
+  localhost: localhost.id,
+  zeroGTestnet: zeroGTestnet.id,
+  zeroGMainnet: zeroGMainnet.id,
+} as const;
+
+export function chainName(chainId: number | undefined): string {
   switch (chainId) {
     case localhost.id:
-      return localhost.contracts?.policyRegistry?.address;
+      return "Hardhat";
     case zeroGTestnet.id:
-      return zeroGTestnet.contracts?.policyRegistry?.address;
+      return "0G Galileo Testnet";
     case zeroGMainnet.id:
-      return zeroGMainnet.contracts?.policyRegistry?.address;
+      return "0G Mainnet";
     default:
-      return undefined;
+      return chainId ? `Chain ${chainId}` : "—";
   }
+}
+
+/** Backend base URL — VITE_BACKEND_URL overrides. */
+export function getBackendUrl(): string {
+  return (
+    import.meta.env.VITE_BACKEND_URL ??
+    (import.meta.env.DEV
+      ? "http://localhost:3001"
+      : "https://be-wallet.goon4.site")
+  );
 }

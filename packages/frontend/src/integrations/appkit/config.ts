@@ -4,7 +4,12 @@ import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { zeroGMainnet, zeroGTestnet, localhost } from "@iwallet/chains";
 
 // 1. Get projectId from https://dashboard.reown.com
-const projectId = import.meta.env.VITE_REOWN_PROJECT_ID ?? "";
+// If VITE_REOWN_PROJECT_ID is not set we fall back to a non-empty placeholder
+// so AppKit doesn't bail out, then disable analytics below to avoid the
+// 403s from Reown's project-config endpoint.
+const projectId =
+  import.meta.env.VITE_REOWN_PROJECT_ID ||
+  "00000000000000000000000000000000";
 
 // 2. Create a metadata object - optional
 const metadata = {
@@ -31,6 +36,6 @@ createAppKit({
   projectId,
   metadata,
   features: {
-    analytics: true,
+    analytics: false,
   },
 });

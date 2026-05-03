@@ -5,11 +5,16 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "mcp": "bun run src/mcp/index.ts"
+  },
+  "bin": {
+    "iwallet-mcp": "./src/mcp/index.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
     "@iwallet/chains": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@sinclair/typebox": "^0.34.49",
     "elysia": "^1.4.28",
     "openai": "^6.34.0",

@@ -1,5 +1,13 @@
 {
   "name": "contract",
   "version": "1.0.0",
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "compile": "bunx hardhat compile",
+    "test": "bunx hardhat test",
+    "deploy:local": "bunx hardhat ignition deploy ignition/modules/iWalletFactory.ts --network localhost && bun run scripts/sync-deployments.ts",
+    "deploy:testnet": "bunx hardhat ignition deploy ignition/modules/iWalletFactory.ts --network zeroGTestnet && bun run scripts/sync-deployments.ts",
+    "deploy:mainnet": "bunx hardhat ignition deploy ignition/modules/iWalletFactory.ts --network zeroGMainnet && bun run scripts/sync-deployments.ts",
+    "sync-deployments": "bun run scripts/sync-deployments.ts"
+  }
 }

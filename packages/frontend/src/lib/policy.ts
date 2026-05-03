@@ -1,72 +1,82 @@
 import { parseEther, formatEther } from "viem";
 
 export interface PolicyConfig {
-  dailySpendLimitETH: string; // human-readable ETH amount
+  dailyETHLimit: string;                // human-readable ETH (e.g. "0.05")
   allowedTokens: `0x${string}`[];
+  tokenDailyLimits: bigint[];           // raw amounts, parallel to allowedTokens
   allowedContracts: `0x${string}`[];
-  maxGasPerTx: bigint;
+  allowedSpenders: `0x${string}`[];
   cooldownSeconds: number;
-  expiresAt: number; // unix timestamp, 0 = never
+  maxGasPerTx: bigint;
+  expiresAt: number;                    // unix seconds, 0 = never
 }
 
 export interface PolicyOnChain {
-  dailySpendLimitETH: bigint;
+  dailyETHLimit: bigint;
   allowedTokens: readonly `0x${string}`[];
+  tokenDailyLimits: readonly bigint[];
   allowedContracts: readonly `0x${string}`[];
-  maxGasPerTx: bigint;
+  allowedSpenders: readonly `0x${string}`[];
   cooldownSeconds: bigint;
+  maxGasPerTx: bigint;
   expiresAt: bigint;
+  active: boolean;
 }
 
-export function policyConfigToArgs(config: PolicyConfig): PolicyOnChain {
+export function policyConfigToArgs(c: PolicyConfig): PolicyOnChain {
   return {
-    dailySpendLimitETH: parseEther(config.dailySpendLimitETH),
-    allowedTokens: config.allowedTokens,
-    allowedContracts: config.allowedContracts,
-    maxGasPerTx: config.maxGasPerTx,
-    cooldownSeconds: BigInt(config.cooldownSeconds),
-    expiresAt: BigInt(config.expiresAt),
+    dailyETHLimit: parseEther(c.dailyETHLimit),
+    allowedTokens: c.allowedTokens,
+    tokenDailyLimits: c.tokenDailyLimits,
+    allowedContracts: c.allowedContracts,
+    allowedSpenders: c.allowedSpenders,
+    cooldownSeconds: BigInt(c.cooldownSeconds),
+    maxGasPerTx: c.maxGasPerTx,
+    expiresAt: BigInt(c.expiresAt),
+    active: false,
   };
 }
 
-export function formatPolicy(policy: PolicyOnChain): {
+export function formatPolicy(p: PolicyOnChain): {
+  active: string;
   dailyLimit: string;
   allowedTokens: string;
   allowedContracts: string;
-  maxGas: string;
+  allowedSpenders: string;
   cooldown: string;
   expires: string;
 } {
   return {
-    dailyLimit: `${formatEther(policy.dailySpendLimitETH)} ETH`,
+    active: p.active ? "Active" : "Revoked",
+    dailyLimit: `${formatEther(p.dailyETHLimit)} ETH`,
     allowedTokens:
-      policy.allowedTokens.length === 0
-        ? "Any"
-        : `${policy.allowedTokens.length} whitelisted`,
-    allowedContracts:
-      policy.allowedContracts.length === 0
-        ? "Any"
-        : `${policy.allowedContracts.length} whitelisted`,
-    maxGas:
-      policy.maxGasPerTx === 0n
-        ? "Unlimited"
-        : policy.maxGasPerTx.toString(),
-    cooldown:
-      policy.cooldownSeconds === 0n
+      p.allowedTokens.length === 0
         ? "None"
-        : `${policy.cooldownSeconds}s`,
+        : `${p.allowedTokens.length} whitelisted`,
+    allowedContracts:
+      p.allowedContracts.length === 0
+        ? "None"
+        : `${p.allowedContracts.length} whitelisted`,
+    allowedSpenders:
+      p.allowedSpenders.length === 0
+        ? "None"
+        : `${p.allowedSpenders.length} whitelisted`,
+    cooldown:
+      p.cooldownSeconds === 0n ? "None" : `${p.cooldownSeconds}s`,
     expires:
-      policy.expiresAt === 0n
+      p.expiresAt === 0n
         ? "Never"
-        : new Date(Number(policy.expiresAt) * 1000).toLocaleDateString(),
+        : new Date(Number(p.expiresAt) * 1000).toLocaleDateString(),
   };
 }
 
 export const DEFAULT_POLICY: PolicyConfig = {
-  dailySpendLimitETH: "0.05",
+  dailyETHLimit: "0.05",
   allowedTokens: [],
+  tokenDailyLimits: [],
   allowedContracts: [],
-  maxGasPerTx: 0n,
+  allowedSpenders: [],
   cooldownSeconds: 0,
+  maxGasPerTx: 0n,
   expiresAt: 0,
 };

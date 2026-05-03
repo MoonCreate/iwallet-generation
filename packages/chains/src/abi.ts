@@ -1,250 +1,892 @@
-export const POLICY_PROXY_ABI = [
+export const IWALLET_ABI = [
   {
-    type: "constructor",
-    inputs: [
-      { name: "_owner", type: "address" },
-      { name: "_agent", type: "address" },
+    "anonymous": false,
+    "inputs": [],
+    "name": "GlobalLimitsUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "Resumed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
       {
-        name: "policy",
-        type: "tuple",
-        components: [
-          { name: "dailySpendLimitETH", type: "uint256" },
-          { name: "allowedTokens", type: "address[]" },
-          { name: "allowedContracts", type: "address[]" },
-          { name: "maxGasPerTx", type: "uint256" },
-          { name: "cooldownSeconds", type: "uint256" },
-          { name: "expiresAt", type: "uint256" },
-        ],
-      },
+        "indexed": true,
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      }
     ],
+    "name": "SessionAdded",
+    "type": "event"
   },
   {
-    type: "function",
-    name: "execute",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "value", type: "uint256" },
-      { name: "data", type: "bytes" },
-    ],
-    outputs: [{ name: "", type: "bytes" }],
-    stateMutability: "payable",
-  },
-  {
-    type: "function",
-    name: "getPolicy",
-    inputs: [],
-    outputs: [
+    "anonymous": false,
+    "inputs": [
       {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "dailySpendLimitETH", type: "uint256" },
-          { name: "allowedTokens", type: "address[]" },
-          { name: "allowedContracts", type: "address[]" },
-          { name: "maxGasPerTx", type: "uint256" },
-          { name: "cooldownSeconds", type: "uint256" },
-          { name: "expiresAt", type: "uint256" },
-        ],
-      },
+        "indexed": true,
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      }
     ],
-    stateMutability: "view",
+    "name": "SessionPolicyUpdated",
+    "type": "event"
   },
   {
-    type: "function",
-    name: "getDailySpent",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "isRevoked",
-    inputs: [],
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "owner",
-    inputs: [],
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "agent",
-    inputs: [],
-    outputs: [{ name: "", type: "address" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "revoked",
-    inputs: [],
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "updatePolicy",
-    inputs: [
+    "anonymous": false,
+    "inputs": [
       {
-        name: "newPolicy",
-        type: "tuple",
-        components: [
-          { name: "dailySpendLimitETH", type: "uint256" },
-          { name: "allowedTokens", type: "address[]" },
-          { name: "allowedContracts", type: "address[]" },
-          { name: "maxGasPerTx", type: "uint256" },
-          { name: "cooldownSeconds", type: "uint256" },
-          { name: "expiresAt", type: "uint256" },
-        ],
+        "indexed": true,
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      }
+    ],
+    "name": "SessionRevoked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
       },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      }
     ],
-    outputs: [],
-    stateMutability: "nonpayable",
+    "name": "TransactionExecuted",
+    "type": "event"
   },
   {
-    type: "function",
-    name: "revokeAgent",
-    inputs: [],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "unrevokeAgent",
-    inputs: [],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "setAgent",
-    inputs: [{ name: "_agent", type: "address" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "event",
-    name: "PolicyUpdated",
-    inputs: [{ name: "wallet", type: "address", indexed: true }],
-  },
-  {
-    type: "event",
-    name: "TransactionExecuted",
-    inputs: [
-      { name: "wallet", type: "address", indexed: true },
-      { name: "to", type: "address", indexed: true },
-      { name: "value", type: "uint256", indexed: false },
-      { name: "dailyTotal", type: "uint256", indexed: false },
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      }
     ],
+    "name": "Withdrawn",
+    "type": "event"
   },
   {
-    type: "event",
-    name: "PolicyViolation",
-    inputs: [
-      { name: "wallet", type: "address", indexed: true },
-      { name: "reason", type: "string", indexed: false },
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "dailyETHLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedTokens",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "tokenDailyLimits",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedContracts",
+            "type": "address[]"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedSpenders",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "cooldownSeconds",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxGasPerTx",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "expiresAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "active",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct Policy",
+        "name": "policy",
+        "type": "tuple"
+      }
     ],
+    "name": "addSession",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    type: "event",
-    name: "AgentRevoked",
-    inputs: [{ name: "wallet", type: "address", indexed: true }],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
+      }
+    ],
+    "name": "execute",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
   },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
+      }
+    ],
+    "name": "executeAsOwner",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct Call[]",
+        "name": "calls",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "executeBatch",
+    "outputs": [
+      {
+        "internalType": "bytes[]",
+        "name": "results",
+        "type": "bytes[]"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getGlobalDailyEthSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "getGlobalDailyTokenSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      }
+    ],
+    "name": "getSessionDailyEthSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "getSessionDailyTokenSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      }
+    ],
+    "name": "getSessionPolicy",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "dailyETHLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedTokens",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "tokenDailyLimits",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedContracts",
+            "type": "address[]"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedSpenders",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "cooldownSeconds",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxGasPerTx",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "expiresAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "active",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct Policy",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "globalDailyETHLimit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "globalEthSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "globalTokenDailyLimit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "globalTokenSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_globalDailyETHLimit",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_globalTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_globalTokenLimits",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      }
+    ],
+    "name": "isSessionActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "hash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "sig",
+        "type": "bytes"
+      }
+    ],
+    "name": "isValidSignature",
+    "outputs": [
+      {
+        "internalType": "bytes4",
+        "name": "",
+        "type": "bytes4"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "lastTxTimestamp",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pauseAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "resumeAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      }
+    ],
+    "name": "revokeSession",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "sessionEthSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "sessionTokenSpent",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_globalDailyETHLimit",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "tokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "limits",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "setGlobalLimits",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "session",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "dailyETHLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedTokens",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "tokenDailyLimits",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedContracts",
+            "type": "address[]"
+          },
+          {
+            "internalType": "address[]",
+            "name": "allowedSpenders",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "cooldownSeconds",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxGasPerTx",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "expiresAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "active",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct Policy",
+        "name": "policy",
+        "type": "tuple"
+      }
+    ],
+    "name": "updateSessionPolicy",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  }
 ] as const;
 
-export const POLICY_REGISTRY_ABI = [
+export const IWALLET_FACTORY_ABI = [
   {
-    type: "function",
-    name: "createWallet",
-    inputs: [
-      { name: "agent", type: "address" },
+    "anonymous": false,
+    "inputs": [
       {
-        name: "policy",
-        type: "tuple",
-        components: [
-          { name: "dailySpendLimitETH", type: "uint256" },
-          { name: "allowedTokens", type: "address[]" },
-          { name: "allowedContracts", type: "address[]" },
-          { name: "maxGasPerTx", type: "uint256" },
-          { name: "cooldownSeconds", type: "uint256" },
-          { name: "expiresAt", type: "uint256" },
-        ],
+        "indexed": true,
+        "internalType": "address",
+        "name": "master",
+        "type": "address"
       },
-    ],
-    outputs: [{ name: "proxy", type: "address" }],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "getWalletCount",
-    inputs: [{ name: "_owner", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "getWallet",
-    inputs: [
-      { name: "_owner", type: "address" },
-      { name: "index", type: "uint256" },
-    ],
-    outputs: [
       {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "proxy", type: "address" },
-          { name: "agent", type: "address" },
-          { name: "active", type: "bool" },
-        ],
+        "indexed": true,
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
       },
-    ],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "getWallets",
-    inputs: [{ name: "_owner", type: "address" }],
-    outputs: [
       {
-        name: "",
-        type: "tuple[]",
-        components: [
-          { name: "proxy", type: "address" },
-          { name: "agent", type: "address" },
-          { name: "active", type: "bool" },
-        ],
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "salt",
+        "type": "bytes32"
+      }
+    ],
+    "name": "Deployed",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "master",
+        "type": "address"
       },
+      {
+        "internalType": "bytes32",
+        "name": "salt",
+        "type": "bytes32"
+      }
     ],
-    stateMutability: "view",
+    "name": "computeAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    type: "function",
-    name: "deactivateWallet",
-    inputs: [{ name: "index", type: "uint256" }],
-    outputs: [],
-    stateMutability: "nonpayable",
-  },
-  {
-    type: "event",
-    name: "WalletCreated",
-    inputs: [
-      { name: "owner", type: "address", indexed: true },
-      { name: "agent", type: "address", indexed: true },
-      { name: "proxy", type: "address", indexed: false },
-      { name: "index", type: "uint256", indexed: false },
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "master",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "salt",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "globalDailyETHLimit",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "globalTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "globalTokenLimits",
+        "type": "uint256[]"
+      }
     ],
-  },
-  {
-    type: "event",
-    name: "WalletDeactivated",
-    inputs: [
-      { name: "owner", type: "address", indexed: true },
-      { name: "proxy", type: "address", indexed: false },
-      { name: "index", type: "uint256", indexed: false },
+    "name": "deploy",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "wallet",
+        "type": "address"
+      }
     ],
-  },
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
 ] as const;

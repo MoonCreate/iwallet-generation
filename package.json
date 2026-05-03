@@ -5,10 +5,12 @@
   "private": true,
   "scripts": {
     "node": "cd packages/contract && bunx hardhat node",
-    "deploy:local": "cd packages/contract && bunx hardhat run scripts/deploy-local.ts",
+    "deploy:local": "bun run --cwd packages/contract deploy:local",
+    "deploy:testnet": "bun run --cwd packages/contract deploy:testnet",
+    "deploy:mainnet": "bun run --cwd packages/contract deploy:mainnet",
     "dev:backend": "bun run --cwd packages/backend dev",
     "dev:frontend": "bun run --cwd packages/frontend dev",
-    "test": "bunx hardhat test"
+    "test": "bun run --cwd packages/contract test"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.1.1",

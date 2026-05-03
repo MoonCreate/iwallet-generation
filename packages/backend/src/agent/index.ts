@@ -88,8 +88,10 @@ export async function* runAgentChat(
       openaiMessages.push(message);
 
       for (const toolCall of message.tool_calls) {
-        const toolName = toolCall.function.name;
-        const toolInput = JSON.parse(toolCall.function.arguments);
+        if (toolCall.type !== "function") continue;
+        const fn = (toolCall as { function: { name: string; arguments: string } }).function;
+        const toolName = fn.name;
+        const toolInput = JSON.parse(fn.arguments);
 
         yield {
           type: "tool_use",
@@ -109,7 +111,7 @@ export async function* runAgentChat(
         // Add tool result to history
         openaiMessages.push({
           role: "tool",
-          tool_call_id: toolCall.id,
+          tool_call_id: (toolCall as { id: string }).id,
           content: result,
         });
       }

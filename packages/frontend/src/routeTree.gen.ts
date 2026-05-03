@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RobotRouteImport } from './routes/robot'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CreateRouteImport } from './routes/create'
+import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ConfigureRouteImport } from './routes/configure'
 import { Route as AgentRouteImport } from './routes/agent'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const CreateRoute = CreateRouteImport.update({
   id: '/create',
   path: '/create',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectRoute = ConnectRouteImport.update({
+  id: '/connect',
+  path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfigureRoute = ConfigureRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
   '/configure': typeof ConfigureRoute
+  '/connect': typeof ConnectRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/robot': typeof RobotRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
   '/configure': typeof ConfigureRoute
+  '/connect': typeof ConnectRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/robot': typeof RobotRoute
@@ -68,20 +76,36 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
   '/configure': typeof ConfigureRoute
+  '/connect': typeof ConnectRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/robot': typeof RobotRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/agent' | '/configure' | '/create' | '/dashboard' | '/robot'
+  fullPaths:
+    | '/'
+    | '/agent'
+    | '/configure'
+    | '/connect'
+    | '/create'
+    | '/dashboard'
+    | '/robot'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/agent' | '/configure' | '/create' | '/dashboard' | '/robot'
+  to:
+    | '/'
+    | '/agent'
+    | '/configure'
+    | '/connect'
+    | '/create'
+    | '/dashboard'
+    | '/robot'
   id:
     | '__root__'
     | '/'
     | '/agent'
     | '/configure'
+    | '/connect'
     | '/create'
     | '/dashboard'
     | '/robot'
@@ -91,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentRoute: typeof AgentRoute
   ConfigureRoute: typeof ConfigureRoute
+  ConnectRoute: typeof ConnectRoute
   CreateRoute: typeof CreateRoute
   DashboardRoute: typeof DashboardRoute
   RobotRoute: typeof RobotRoute
@@ -117,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/create'
       fullPath: '/create'
       preLoaderRoute: typeof CreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connect': {
+      id: '/connect'
+      path: '/connect'
+      fullPath: '/connect'
+      preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configure': {
@@ -147,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentRoute: AgentRoute,
   ConfigureRoute: ConfigureRoute,
+  ConnectRoute: ConnectRoute,
   CreateRoute: CreateRoute,
   DashboardRoute: DashboardRoute,
   RobotRoute: RobotRoute,

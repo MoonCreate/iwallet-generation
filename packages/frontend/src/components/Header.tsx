@@ -16,6 +16,7 @@ export default function Header() {
         </h2>
 
         <div className="ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
+          <appkit-network-button />
           <appkit-button />
           <ThemeToggle />
         </div>
@@ -29,11 +30,11 @@ export default function Header() {
             Home
           </Link>
           <Link
-            to="/create"
+            to="/connect"
             className="nav-link"
             activeProps={{ className: "nav-link is-active" }}
           >
-            Create
+            Connect
           </Link>
           <Link
             to="/dashboard"
@@ -41,13 +42,6 @@ export default function Header() {
             activeProps={{ className: "nav-link is-active" }}
           >
             Dashboard
-          </Link>
-          <Link
-            to="/agent"
-            className="nav-link"
-            activeProps={{ className: "nav-link is-active" }}
-          >
-            Agent
           </Link>
           <Link
             to="/robot"

@@ -4,26 +4,16 @@ import {
   zeroGTestnet as testnetBase,
   hardhat as hardhatBase,
 } from "viem/chains";
+import { FACTORY_ADDRESSES, getFactoryAddressForChain } from "./deployments.ts";
 
-// Contract addresses — update after deployment
-export const CONTRACT_ADDRESSES = {
-  mainnet: {
-    policyRegistry: "0x0" as `0x${string}`,
-  },
-  testnet: {
-    policyRegistry: "0x0" as `0x${string}`,
-  },
-  localhost: {
-    policyRegistry: "0x0" as `0x${string}`,
-  },
-} as const;
+export { FACTORY_ADDRESSES, getFactoryAddressForChain };
 
 export const zeroGMainnet = defineChain({
   ...mainnetBase,
   contracts: {
     ...mainnetBase.contracts,
-    policyRegistry: {
-      address: CONTRACT_ADDRESSES.mainnet.policyRegistry,
+    iWalletFactory: {
+      address: FACTORY_ADDRESSES[mainnetBase.id] ?? ("0x0" as `0x${string}`),
       blockCreated: 0,
     },
   },
@@ -33,8 +23,8 @@ export const zeroGTestnet = defineChain({
   ...testnetBase,
   contracts: {
     ...testnetBase.contracts,
-    policyRegistry: {
-      address: CONTRACT_ADDRESSES.testnet.policyRegistry,
+    iWalletFactory: {
+      address: FACTORY_ADDRESSES[testnetBase.id] ?? ("0x0" as `0x${string}`),
       blockCreated: 0,
     },
   },
@@ -43,12 +33,13 @@ export const zeroGTestnet = defineChain({
 export const localhost = defineChain({
   ...hardhatBase,
   contracts: {
-    policyRegistry: {
-      address: CONTRACT_ADDRESSES.localhost.policyRegistry,
+    iWalletFactory: {
+      address: FACTORY_ADDRESSES[hardhatBase.id] ?? ("0x0" as `0x${string}`),
       blockCreated: 0,
     },
   },
 });
 
-// Re-export ABIs for use across packages
-export { POLICY_PROXY_ABI, POLICY_REGISTRY_ABI } from "./abi.ts";
+export const SUPPORTED_CHAINS = [zeroGMainnet, zeroGTestnet, localhost];
+
+export { IWALLET_ABI, IWALLET_FACTORY_ABI } from "./abi.ts";

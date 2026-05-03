@@ -1,14 +1,18 @@
 import {
   createPublicClient,
   http,
-  parseAbiItem,
   formatEther,
   type Chain,
 } from "viem";
-import { POLICY_PROXY_ABI } from "@iwallet/chains";
+import { IWALLET_ABI } from "@iwallet/chains";
 
 export interface IndexedEvent {
-  type: "TransactionExecuted" | "PolicyViolation" | "AgentRevoked";
+  type:
+    | "TransactionExecuted"
+    | "SessionAdded"
+    | "SessionRevoked"
+    | "Paused"
+    | "Resumed";
   wallet: string;
   timestamp: number;
   data: Record<string, string>;
@@ -16,76 +20,79 @@ export interface IndexedEvent {
 }
 
 const eventStore: Map<string, IndexedEvent[]> = new Map();
+const startedFor = new Set<string>();
 
-export function getEvents(proxyAddress: string): IndexedEvent[] {
-  return eventStore.get(proxyAddress.toLowerCase()) ?? [];
+export function getEvents(walletAddress: string): IndexedEvent[] {
+  return eventStore.get(walletAddress.toLowerCase()) ?? [];
 }
 
 export function startIndexer(
-  proxyAddress: `0x${string}`,
+  walletAddress: `0x${string}`,
   chain: Chain,
   rpcUrl: string
 ) {
+  const key = walletAddress.toLowerCase();
+  if (startedFor.has(key)) return;
+  startedFor.add(key);
+
   const client = createPublicClient({
     chain,
     transport: http(rpcUrl),
   });
 
-  // Watch TransactionExecuted events
   client.watchContractEvent({
-    address: proxyAddress,
-    abi: POLICY_PROXY_ABI,
+    address: walletAddress,
+    abi: IWALLET_ABI,
     eventName: "TransactionExecuted",
     onLogs: (logs) => {
       for (const log of logs) {
-        const event: IndexedEvent = {
+        const a = log.args as {
+          session?: string;
+          to?: string;
+          value?: bigint;
+          selector?: string;
+        };
+        addEvent(walletAddress, {
           type: "TransactionExecuted",
-          wallet: proxyAddress,
+          wallet: walletAddress,
           timestamp: Date.now(),
           data: {
-            to: (log.args as { to?: string }).to ?? "",
-            value: formatEther(
-              ((log.args as { value?: bigint }).value) ?? 0n
-            ),
-            dailyTotal: formatEther(
-              ((log.args as { dailyTotal?: bigint }).dailyTotal) ?? 0n
-            ),
+            session: a.session ?? "",
+            to: a.to ?? "",
+            value: formatEther(a.value ?? 0n),
+            selector: a.selector ?? "",
           },
           txHash: log.transactionHash ?? "",
-        };
-        addEvent(proxyAddress, event);
+        });
       }
     },
   });
 
-  // Watch AgentRevoked events
   client.watchContractEvent({
-    address: proxyAddress,
-    abi: POLICY_PROXY_ABI,
-    eventName: "AgentRevoked",
+    address: walletAddress,
+    abi: IWALLET_ABI,
+    eventName: "SessionRevoked",
     onLogs: (logs) => {
       for (const log of logs) {
-        const event: IndexedEvent = {
-          type: "AgentRevoked",
-          wallet: proxyAddress,
+        const a = log.args as { session?: string };
+        addEvent(walletAddress, {
+          type: "SessionRevoked",
+          wallet: walletAddress,
           timestamp: Date.now(),
-          data: {},
+          data: { session: a.session ?? "" },
           txHash: log.transactionHash ?? "",
-        };
-        addEvent(proxyAddress, event);
+        });
       }
     },
   });
 
-  console.log(`Indexer started for proxy ${proxyAddress}`);
+  console.log(`[Indexer] watching iWallet ${walletAddress}`);
 }
 
-function addEvent(proxyAddress: string, event: IndexedEvent) {
-  const key = proxyAddress.toLowerCase();
+function addEvent(walletAddress: string, event: IndexedEvent) {
+  const key = walletAddress.toLowerCase();
   const events = eventStore.get(key) ?? [];
   events.push(event);
-  // Keep only last 100 events per proxy
   if (events.length > 100) events.shift();
   eventStore.set(key, events);
-  console.log(`[Indexer] ${event.type}:`, event.data);
 }

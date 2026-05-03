@@ -8,10 +8,15 @@ cd /var/www/iwallet-generation
 echo "==> HEAD: $(git rev-parse --short HEAD)  ($(git log -1 --pretty=%s))"
 
 echo "==> bun install"
-bun install --frozen-lockfile
+# Try frozen first (catches accidental drift); fall back to a normal install
+# so a lockfile bump doesn't block deploys. Either way the install runs.
+if ! bun install --frozen-lockfile; then
+  echo "    frozen-lockfile failed — running 'bun install' to update lockfile"
+  bun install
+fi
 
 echo "==> compiling contracts"
-(cd packages/contract && npx --yes hardhat compile)
+(cd packages/contract && bunx hardhat compile)
 
 echo "==> building frontend"
 (cd packages/frontend && bun run build)

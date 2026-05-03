@@ -14,7 +14,9 @@ echo "==> bun install"
 bun install
 
 echo "==> compiling contracts"
-(cd packages/contract && bunx hardhat compile)
+# Use `bun x` (built-in subcommand) instead of `bunx` (separate binary)
+# because the production server only ships the `bun` binary.
+(cd packages/contract && bun x hardhat compile)
 
 echo "==> building frontend"
 (cd packages/frontend && bun run build)

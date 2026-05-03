@@ -8,18 +8,29 @@ cd /var/www/iwallet-generation
 echo "==> HEAD: $(git rev-parse --short HEAD)  ($(git log -1 --pretty=%s))"
 
 echo "==> bun install"
-# Try frozen first (catches accidental drift); fall back to a normal install
-# so a lockfile bump doesn't block deploys. Either way the install runs.
-if ! bun install --frozen-lockfile; then
-  echo "    frozen-lockfile failed — running 'bun install' to update lockfile"
-  bun install
-fi
+# Production deploys don't need --frozen-lockfile — each run does
+# `git reset --hard origin/master`, so any local lockfile mutation is wiped
+# next cycle anyway. Frozen-lockfile only adds a way to fail spuriously.
+bun install
 
 echo "==> compiling contracts"
 (cd packages/contract && bunx hardhat compile)
 
 echo "==> building frontend"
 (cd packages/frontend && bun run build)
+
+# Defense against the silent stale-bundle case: ensure the SSR bundle
+# was actually rewritten during this run.
+SSR_BUNDLE=packages/frontend/dist/server/server.js
+if [ ! -f "$SSR_BUNDLE" ]; then
+  echo "ERROR: SSR bundle missing at $SSR_BUNDLE — frontend build did not produce output"
+  exit 1
+fi
+SSR_AGE=$(($(date +%s) - $(stat -c %Y "$SSR_BUNDLE")))
+if [ "$SSR_AGE" -gt 600 ]; then
+  echo "ERROR: SSR bundle is ${SSR_AGE}s old — frontend build did not run this cycle"
+  exit 1
+fi
 
 echo "==> restarting services"
 systemctl restart iwallet-backend iwallet-frontend

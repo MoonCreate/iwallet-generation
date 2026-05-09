@@ -43,6 +43,19 @@ export const localhost = defineChain({
 export const SUPPORTED_CHAINS = [zeroGMainnet, zeroGTestnet, localhost] as const;
 
 /**
+ * Etherscan-compatible verification API URLs per chainId. Used by the
+ * backend's auto-verifier to submit fresh BeaconProxy wallet bytecode
+ * for source verification when factory.Deployed fires.
+ *
+ * 0G ChainScan exposes the Etherscan API at /open/api on both nets.
+ * Localhost has no explorer; key absent → verifier skips that chain.
+ */
+export const EXPLORER_API_URLS: Record<number, string> = {
+  [zeroGTestnet.id]: "https://chainscan-galileo.0g.ai/open/api",
+  [zeroGMainnet.id]: "https://chainscan.0g.ai/open/api",
+};
+
+/**
  * Resolve a chainId to one of the supported viem chain objects.
  * Throws if the chainId isn't supported — surface this as a clear error to the
  * caller rather than silently defaulting to testnet (which masks bugs and can
@@ -76,3 +89,13 @@ export function defaultChainId(): number {
 }
 
 export { IWALLET_ABI, IWALLET_FACTORY_ABI } from "./abi.ts";
+
+/**
+ * Pre-extracted Solidity Standard JSON Input + compiler metadata for
+ * verifying any user's BeaconProxy iWallet on an Etherscan-compatible
+ * explorer. Identical bytecode + constructor shape for every wallet from
+ * the factory (only the beacon address differs per chain), so this asset
+ * is reusable across all verifications. Regenerate after contract changes
+ * via the bun -e snippet in scripts/ that reads from build-info.
+ */
+export { default as BEACON_PROXY_VERIFICATION } from "./beacon-proxy-verification.json";

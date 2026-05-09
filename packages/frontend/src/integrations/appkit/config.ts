@@ -9,8 +9,7 @@ import { hardhat } from "viem/chains";
 // so AppKit doesn't bail out, then disable analytics below to avoid the
 // 403s from Reown's project-config endpoint.
 const projectId =
-  import.meta.env.VITE_REOWN_PROJECT_ID ||
-  "00000000000000000000000000000000";
+  import.meta.env.VITE_REOWN_PROJECT_ID || "00000000000000000000000000000000";
 
 // 2. Create a metadata object - optional
 const metadata = {
@@ -43,8 +42,9 @@ createAppKit({
     analytics: false,
   },
   chainImages: {
-    [zeroGTestnet.id]: 'https://cdn.prod.website-files.com/680b884d38733122a923739b/69de313618847214109e4795_webclip.png',
-    [zeroGMainnet.id]: 'https://cdn.prod.website-files.com/680b884d38733122a923739b/69de313618847214109e4795_webclip.png',
-    [localhost.id]: 'https://hardhat.org/favicon.ico',
-  }
+    [zeroGTestnet.id]:
+      "https://cdn.prod.website-files.com/680b884d38733122a923739b/69de313618847214109e4795_webclip.png",
+    [zeroGMainnet.id]: "https://chainscan.0g.ai/favicon.ico",
+    [localhost.id]: "https://hardhat.org/favicon.ico",
+  },
 });

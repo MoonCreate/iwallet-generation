@@ -10,6 +10,7 @@ import {
   revokeBearersForSession,
   listSessionsForWallet,
 } from "../store/sessions.ts";
+import { verifyOnce } from "../verifier/index.ts";
 
 function deriveSessionPrivateKey(
   signature: `0x${string}`,
@@ -99,6 +100,35 @@ export const walletRoutes = new Elysia({ prefix: "/api/wallet" })
     ({ params }) => {
       revokeBearersForSession(params.iWalletAddress, params.sessionAddress);
       return { ok: true };
+    }
+  )
+
+  // Manual re-verification trigger. The auto-verifier watches
+  // factory.Deployed events on every supported chain, so newly-deployed
+  // wallets get verified automatically. This endpoint exists for the case
+  // where the backend was down when the deploy happened, or the explorer
+  // was rate-limiting and the original submit failed.
+  .post(
+    "/verify-source/:iWalletAddress",
+    async ({ params, body, set }) => {
+      const { chainId } = body;
+      try {
+        const result = await verifyOnce(
+          params.iWalletAddress as `0x${string}`,
+          chainId
+        );
+        if (!result.ok) set.status = 502;
+        return result;
+      } catch (e) {
+        set.status = 500;
+        return {
+          ok: false,
+          message: e instanceof Error ? e.message : String(e),
+        };
+      }
+    },
+    {
+      body: t.Object({ chainId: t.Number() }),
     }
   )
 

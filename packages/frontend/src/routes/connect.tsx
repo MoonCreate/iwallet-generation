@@ -141,8 +141,12 @@ function ConnectPage() {
     sessionAddress: `0x${string}`;
     bearerToken: string;
   } | null>(null);
+  // prefillState distinguishes three terminal states so the CTA can match:
+  //   "no-wallet"  — no iWallet contract at the predicted address
+  //   "no-session" — iWallet deployed but no active session on it
+  //   "loaded"     — iWallet + active session, policy prefilled
   const [prefillState, setPrefillState] = useState<
-    "idle" | "loading" | "loaded" | "no-existing"
+    "idle" | "loading" | "loaded" | "no-wallet" | "no-session"
   >("idle");
   const [oauthReturnUri, setOauthReturnUri] = useState<string | null>(null);
 
@@ -156,24 +160,28 @@ function ConnectPage() {
 
   // ── Pre-fill from existing session ────────────────────────────
   useEffect(() => {
-    if (prefillState !== "idle") return;
     if (!predicted || !publicClient) return;
     const iWalletAddress = predicted as `0x${string}`;
     let cancelled = false;
 
+    let walletConfirmedExists = false;
+    setPrefillState("loading");
     (async () => {
-      setPrefillState("loading");
       try {
         const code = await publicClient.getCode({ address: iWalletAddress });
         if (!code || code === "0x") {
-          if (!cancelled) setPrefillState("no-existing");
+          if (!cancelled) setPrefillState("no-wallet");
           return;
         }
+        walletConfirmedExists = true;
+        // iWallet exists from here on — fall back to "no-session" instead of
+        // "no-wallet" if any session lookup fails, so the CTA tells the user
+        // their wallet is fine and only a session needs provisioning.
         const r = await fetch(
           `${getBackendUrl()}/api/wallet/sessions/${iWalletAddress}`
         );
         if (!r.ok) {
-          if (!cancelled) setPrefillState("no-existing");
+          if (!cancelled) setPrefillState("no-session");
           return;
         }
         const { sessions } = (await r.json()) as {
@@ -184,7 +192,7 @@ function ConnectPage() {
         };
         const session = sessions.find((s) => !s.revokedAt);
         if (!session) {
-          if (!cancelled) setPrefillState("no-existing");
+          if (!cancelled) setPrefillState("no-session");
           return;
         }
         const policy = (await publicClient.readContract({
@@ -204,7 +212,7 @@ function ConnectPage() {
           active: boolean;
         };
         if (!policy.active) {
-          if (!cancelled) setPrefillState("no-existing");
+          if (!cancelled) setPrefillState("no-session");
           return;
         }
         const meta = await Promise.all(
@@ -250,14 +258,24 @@ function ConnectPage() {
         setPrefillState("loaded");
       } catch (e) {
         console.error("prefill failed:", e);
-        if (!cancelled) setPrefillState("no-existing");
+        // Pick the right fallback based on whether we made it past the
+        // getCode check. Before getCode → can't tell if a wallet exists,
+        // safer to assume no. After → we know it exists, just couldn't
+        // load session/policy details.
+        if (!cancelled) {
+          setPrefillState(walletConfirmedExists ? "no-session" : "no-wallet");
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [predicted, publicClient, prefillState]);
+    // Intentionally NOT depending on prefillState — gating on state combined
+    // with React 18 strict-mode double-mount + the cancelled-flag pattern
+    // creates a deadlock where no run ever lands a terminal state. The
+    // cancelled flag alone is enough to discard stale results.
+  }, [predicted, publicClient]);
 
   // ── Token row helpers ─────────────────────────────────────────
 
@@ -345,7 +363,34 @@ function ConnectPage() {
           args: [address, SALT, parseEther("1"), [], []],
           gas: 3_000_000n,
         });
-        await publicClient.waitForTransactionReceipt({ hash: deployHash });
+        try {
+          await publicClient.waitForTransactionReceipt({
+            hash: deployHash,
+            // viem follows replacement txs (speedup/cancel) automatically
+            // when this callback is set; without it some chains throw
+            // "transaction has been replaced" even though a same-nonce tx
+            // succeeded.
+            onReplaced: ({ replacement, reason }) => {
+              console.log(
+                `[deploy] tx ${reason}, following replacement ${replacement.transactionHash}`
+              );
+            },
+          });
+        } catch (waitErr) {
+          // Some 0G RPC nodes drop the tx hash from their pending pool right
+          // after inclusion, so viem can't find the receipt and throws
+          // TransactionReceiptNotFoundError or "transaction replaced".
+          // The deterministic CREATE2 address gives us a reliable side check:
+          // if there's code at the predicted address, the deploy worked.
+          const after = await publicClient.getCode({ address: iWalletAddress });
+          if (!after || after === "0x") {
+            throw waitErr;
+          }
+          console.warn(
+            "[deploy] receipt-wait failed but iWallet code present at predicted address — proceeding",
+            waitErr
+          );
+        }
       }
 
       // Deposit
@@ -359,7 +404,26 @@ function ConnectPage() {
             to: iWalletAddress,
             value: depositAmount - currentBalance,
           });
-          await publicClient.waitForTransactionReceipt({ hash: depositHash });
+          try {
+            await publicClient.waitForTransactionReceipt({
+              hash: depositHash,
+              onReplaced: ({ replacement, reason }) => {
+                console.log(
+                  `[deposit] tx ${reason}, following ${replacement.transactionHash}`
+                );
+              },
+            });
+          } catch (waitErr) {
+            // Verify by balance instead of receipt — same logic as deploy.
+            const after = await publicClient.getBalance({
+              address: iWalletAddress,
+            });
+            if (after < depositAmount) throw waitErr;
+            console.warn(
+              "[deposit] receipt-wait failed but iWallet balance reached target — proceeding",
+              waitErr
+            );
+          }
         }
       }
 
@@ -416,7 +480,29 @@ function ConnectPage() {
         args: [prov.sessionAddress, policy],
         gas: 800_000n,
       });
-      await publicClient.waitForTransactionReceipt({ hash: addHash });
+      try {
+        await publicClient.waitForTransactionReceipt({
+          hash: addHash,
+          onReplaced: ({ replacement, reason }) => {
+            console.log(
+              `[addSession] tx ${reason}, following ${replacement.transactionHash}`
+            );
+          },
+        });
+      } catch (waitErr) {
+        // Verify by reading isSessionActive instead of trusting the receipt.
+        const isActive = (await publicClient.readContract({
+          address: iWalletAddress,
+          abi: IWALLET_ABI,
+          functionName: "isSessionActive",
+          args: [prov.sessionAddress],
+        })) as boolean;
+        if (!isActive) throw waitErr;
+        console.warn(
+          "[addSession] receipt-wait failed but session is active on-chain — proceeding",
+          waitErr
+        );
+      }
 
       setOut({
         iWalletAddress,
@@ -518,10 +604,16 @@ function ConnectPage() {
                 <code>updateSessionPolicy</code>.
               </p>
             )}
-            {prefillState === "no-existing" && (
+            {prefillState === "no-wallet" && (
               <p className="text-xs opacity-70">
-                No existing iWallet/session — submitting will deploy + add a
-                fresh session.
+                No iWallet at this address yet — submitting will deploy it
+                and add the first session.
+              </p>
+            )}
+            {prefillState === "no-session" && (
+              <p className="text-xs opacity-70">
+                iWallet already deployed; no active session — submitting
+                will provision a new session against your existing wallet.
               </p>
             )}
           </div>
@@ -678,13 +770,21 @@ function ConnectPage() {
           <button
             type="button"
             onClick={handleSetup}
-            disabled={step !== "idle" && step !== "error"}
+            disabled={
+              (step !== "idle" && step !== "error") ||
+              prefillState === "idle" ||
+              prefillState === "loading"
+            }
             className="w-full rounded-full bg-[var(--lagoon-deep)] px-5 py-3 font-semibold text-white disabled:opacity-50"
           >
             {step === "idle" || step === "error"
               ? prefillState === "loaded"
                 ? "Update policy & rotate token"
-                : "Deploy iWallet & provision session"
+                : prefillState === "no-session"
+                  ? "Provision session"
+                  : prefillState === "no-wallet"
+                    ? "Deploy iWallet & provision session"
+                    : "Checking iWallet status…"
               : step === "deploying"
                 ? "Deploying iWallet…"
                 : step === "provisioning"

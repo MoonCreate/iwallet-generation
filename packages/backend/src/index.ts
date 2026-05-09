@@ -4,6 +4,7 @@ import { agentRoutes } from "./routes/agent.ts";
 import { mcpRoutes } from "./routes/mcp.ts";
 import { oauthRoutes } from "./routes/oauth.ts";
 import { walletRoutes } from "./routes/wallet.ts";
+import { startVerifier } from "./verifier/index.ts";
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -32,5 +33,10 @@ const app = new Elysia()
 console.log(`iWallet backend running at http://localhost:${PORT}`);
 console.log(`  /mcp           — Streamable HTTP MCP (POST)`);
 console.log(`  /api/wallet/*  — provisioning + tools (REST)`);
+
+// Auto-verify newly-deployed iWallets on supported chains. Fire-and-forget
+// per event; failures log and don't kill the backend. See verifier/ for
+// the per-chain watcher + Etherscan-API submit logic.
+startVerifier();
 
 export type App = typeof app;

@@ -13,8 +13,8 @@
  *   PROVISIONING_SIGNATURE 0x… master signature + SESSION_INDEX (number)
  *
  * Optional env:
- *   RPC_URL               JSON-RPC endpoint (default: hardhat localhost)
- *   USE_LOCALHOST         "true" to use chain id 31337
+ *   CHAIN_ID              16602 (testnet, default) or 16661 (mainnet)
+ *   RPC_URL               JSON-RPC endpoint (default: chain's public RPC)
  *
  * Add to Claude Code:
  *   claude mcp add iwallet bun run /abs/path/packages/backend/src/mcp/index.ts \
@@ -29,7 +29,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { keccak256, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { localhost, zeroGTestnet } from "@iwallet/chains";
+import { pickChain, zeroGTestnet } from "@iwallet/chains";
 import {
   runTool,
   toolDefinitions,
@@ -61,7 +61,8 @@ if (env.SESSION_PRIVATE_KEY) {
   process.exit(1);
 }
 
-const chain = env.USE_LOCALHOST === "true" ? localhost : zeroGTestnet;
+const chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : zeroGTestnet.id;
+const chain = pickChain(chainId);
 const rpcUrl = env.RPC_URL ?? chain.rpcUrls.default.http[0];
 
 const ctx: SessionContext = { privateKey, iWalletAddress, chain, rpcUrl };

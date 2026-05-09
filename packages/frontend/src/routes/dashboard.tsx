@@ -148,32 +148,40 @@ function DashboardPage() {
           chainId={chainId}
           globalCap={globalCap as bigint | undefined}
         />
-      ) : (
+      ) : hasCode === null ? (
         <section className="island-shell rounded-2xl p-6">
-          <div className="mb-3 flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-[var(--lagoon-deep)]" />
-            <h2 className="text-lg font-semibold">iWallet</h2>
+          <div className="flex items-center gap-2 text-sm opacity-70">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Checking iWallet status…
           </div>
-          <p className="text-sm">
-            Address:{" "}
-            <code className="break-all">{iWalletAddr ?? "—"}</code>
+        </section>
+      ) : (
+        // Not-deployed empty state — centered, prominent CTA.
+        <section className="island-shell rounded-2xl p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--lagoon-deep)]/10 text-[var(--lagoon-deep)]">
+            <Wallet className="h-7 w-7" />
+          </div>
+          <h2 className="text-lg font-semibold">No iWallet yet</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm opacity-70">
+            Your iWallet will live at the deterministic address below once
+            you deploy. The same address is reserved across redeploys, so
+            this is what to fund / share.
           </p>
-          <p className="mt-2 text-sm">
-            Status:{" "}
-            {hasCode === null
-              ? "checking…"
-              : hasCode
-                ? "Deployed"
-                : "Not deployed yet"}
-          </p>
-          {hasCode === false && (
+          {iWalletAddr && (
+            <code className="mt-3 inline-block break-all rounded bg-black/10 px-2 py-1 font-mono text-xs">
+              {iWalletAddr}
+            </code>
+          )}
+          <div className="mt-6">
             <Link
               to="/connect"
-              className="mt-3 inline-flex rounded-full bg-[var(--lagoon-deep)] px-4 py-2 text-sm font-semibold text-white"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--lagoon-deep)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+              style={{ color: "white" }}
             >
+              <ArrowUpRight className="h-4 w-4" />
               Deploy & provision a session
             </Link>
-          )}
+          </div>
         </section>
       )}
 
@@ -511,7 +519,7 @@ function useChainNativeSymbol(chainId: number | undefined): string {
   if (chain?.nativeCurrency.symbol) return chain.nativeCurrency.symbol;
   // Defensive fallback when chain object isn't ready yet.
   if (chainId === 16602 || chainId === 16661) return "0G";
-  return "ETH";
+  return "—";
 }
 
 function explorerForChain(chainId: number | undefined): string {

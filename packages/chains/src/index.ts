@@ -2,7 +2,6 @@ import { defineChain } from "viem";
 import {
   zeroGMainnet as mainnetBase,
   zeroGTestnet as testnetBase,
-  hardhat as hardhatBase,
 } from "viem/chains";
 import { FACTORY_ADDRESSES, getFactoryAddressForChain } from "./deployments.ts";
 
@@ -48,19 +47,7 @@ export const zeroGTestnet = defineChain({
   },
 });
 
-export const localhost = defineChain({
-  ...hardhatBase,
-  contracts: {
-    iWalletFactory: {
-      address: FACTORY_ADDRESSES[hardhatBase.id] ?? ("0x0" as `0x${string}`),
-      blockCreated: 0,
-    },
-    // Hardhat node ships Multicall3 too as of recent versions.
-    multicall3: MULTICALL3,
-  },
-});
-
-export const SUPPORTED_CHAINS = [zeroGMainnet, zeroGTestnet, localhost] as const;
+export const SUPPORTED_CHAINS = [zeroGMainnet, zeroGTestnet] as const;
 
 /**
  * Etherscan-compatible verification API URLs per chainId. Used by the

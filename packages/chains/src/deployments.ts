@@ -11,9 +11,6 @@
  */
 
 export const FACTORY_ADDRESSES: Record<number, `0x${string}`> = {
-  // Hardhat local — set by `bun run --cwd packages/contract deploy:local`
-  31337: "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
-
   // 0G Galileo Testnet (upgradable: ERC1967 proxy → iWalletFactory + Beacon)
   16602: "0xCF1f2860BA28aD3c7BCfCc29ab34c2f70D64F4ca",
 

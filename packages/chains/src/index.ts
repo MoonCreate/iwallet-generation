@@ -8,6 +8,15 @@ import { FACTORY_ADDRESSES, getFactoryAddressForChain } from "./deployments.ts";
 
 export { FACTORY_ADDRESSES, getFactoryAddressForChain };
 
+// Multicall3 — same canonical address everywhere (deployed via the
+// deterministic Multicall3 deployer). Confirmed deployed on both 0G nets.
+// Setting it here lets viem's `publicClient.multicall(...)` find it
+// automatically without an explicit multicallAddress arg.
+const MULTICALL3 = {
+  address: "0xcA11bde05977b3631167028862bE2a173976CA11" as `0x${string}`,
+  blockCreated: 0,
+};
+
 export const zeroGMainnet = defineChain({
   ...mainnetBase,
   contracts: {
@@ -16,6 +25,7 @@ export const zeroGMainnet = defineChain({
       address: FACTORY_ADDRESSES[mainnetBase.id] ?? ("0x0" as `0x${string}`),
       blockCreated: 0,
     },
+    multicall3: MULTICALL3,
   },
 });
 
@@ -27,6 +37,7 @@ export const zeroGTestnet = defineChain({
       address: FACTORY_ADDRESSES[testnetBase.id] ?? ("0x0" as `0x${string}`),
       blockCreated: 0,
     },
+    multicall3: MULTICALL3,
   },
 });
 
@@ -37,6 +48,8 @@ export const localhost = defineChain({
       address: FACTORY_ADDRESSES[hardhatBase.id] ?? ("0x0" as `0x${string}`),
       blockCreated: 0,
     },
+    // Hardhat node ships Multicall3 too as of recent versions.
+    multicall3: MULTICALL3,
   },
 });
 
@@ -54,6 +67,11 @@ export const EXPLORER_API_URLS: Record<number, string> = {
   [zeroGTestnet.id]: "https://chainscan-galileo.0g.ai/open/api",
   [zeroGMainnet.id]: "https://chainscan.0g.ai/open/api",
 };
+
+// Token registry has moved to @iwallet/tokens. Import getSupportedTokens
+// or SUPPORTED_TOKENS from there. Kept this file focused on chain config
+// (RPC, explorers, factory addresses, ABIs) — token lists evolve on a
+// different cadence and are owned by a separate package.
 
 /**
  * Resolve a chainId to one of the supported viem chain objects.

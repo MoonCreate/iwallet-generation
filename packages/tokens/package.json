@@ -1,0 +1,18 @@
+{
+  "name": "@iwallet/tokens",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "exports": [
+    "./src/index.ts"
+  ],
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@iwallet/chains": "workspace:*"
+  }
+}

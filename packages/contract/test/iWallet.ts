@@ -36,13 +36,39 @@ describe("iWallet", async () => {
     ...over,
   });
 
+  async function deployFactory(owner_?: `0x${string}`) {
+    // 1. iWallet implementation (logic behind every wallet's BeaconProxy)
+    const walletImpl = await viem.deployContract("iWallet");
+
+    // 2. iWalletFactory implementation (UUPS logic)
+    const factoryImpl = await viem.deployContract("iWalletFactory");
+
+    // 3. ERC1967Proxy in front of the factory, initialized with
+    //    (initialOwner, walletImpl) — deploys the beacon owned by the proxy.
+    const initData = encodeFunctionData({
+      abi: factoryImpl.abi,
+      functionName: "initialize",
+      args: [owner_ ?? master.account.address, walletImpl.address],
+    });
+    const factoryProxy = await viem.deployContract("ERC1967Proxy", [
+      factoryImpl.address,
+      initData,
+    ]);
+
+    const factory = await viem.getContractAt(
+      "iWalletFactory",
+      factoryProxy.address
+    );
+    return { factory, walletImpl, factoryImpl };
+  }
+
   async function deployFactoryAndWallet(opts?: {
     globalDailyETHLimit?: bigint;
     globalTokens?: `0x${string}`[];
     globalTokenLimits?: bigint[];
     salt?: `0x${string}`;
   }) {
-    const factory = await viem.deployContract("iWalletFactory");
+    const { factory, walletImpl, factoryImpl } = await deployFactory();
     const salt =
       opts?.salt ??
       ("0x0000000000000000000000000000000000000000000000000000000000000001" as `0x${string}`);
@@ -66,7 +92,7 @@ describe("iWallet", async () => {
       to: wAddr,
       value: parseEther("10"),
     });
-    return { factory, wallet: w };
+    return { factory, walletImpl, factoryImpl, wallet: w };
   }
 
   async function deployToken(
@@ -535,7 +561,7 @@ describe("iWallet", async () => {
   });
 
   it("factory.computeAddress matches deployed address", async () => {
-    const factory = await viem.deployContract("iWalletFactory");
+    const { factory } = await deployFactory();
     const salt =
       "0x000000000000000000000000000000000000000000000000000000000000007b" as `0x${string}`;
     const predicted = await factory.read.computeAddress([
@@ -548,5 +574,102 @@ describe("iWallet", async () => {
     );
     const code = await publicClient.getCode({ address: predicted });
     assert.ok(code && code !== "0x", "no code at predicted address");
+  });
+
+  // ── upgradeability ────────────────────────────────────────────
+
+  it("re-initialization is rejected on a deployed wallet", async () => {
+    const { wallet } = await deployFactoryAndWallet();
+    await assert.rejects(
+      wallet.write.initialize(
+        [master.account.address, 0n, [], []],
+        { account: master.account }
+      ),
+      /InvalidInitialization/
+    );
+  });
+
+  it("factory exposes the beacon and current implementation", async () => {
+    const { factory, walletImpl } = await deployFactory();
+    const beacon = await factory.read.beacon();
+    assert.notEqual(beacon, zeroAddress);
+    const impl = await factory.read.getImplementation();
+    assert.equal(getAddress(impl), getAddress(walletImpl.address));
+  });
+
+  it("factory owner can upgrade iWallet logic for ALL wallets via the beacon", async () => {
+    const { factory, wallet, walletImpl } = await deployFactoryAndWallet();
+
+    // Sanity: wallet works on impl v1
+    assert.equal(
+      getAddress(await wallet.read.owner()),
+      getAddress(master.account.address)
+    );
+
+    // Deploy a fresh impl (same bytecode is fine — we only need a different
+    // address to prove the beacon switched).
+    const newImpl = await viem.deployContract("iWallet");
+    assert.notEqual(getAddress(newImpl.address), getAddress(walletImpl.address));
+
+    await factory.write.upgradeImplementation([newImpl.address], {
+      account: master.account,
+    });
+
+    const current = await factory.read.getImplementation();
+    assert.equal(getAddress(current), getAddress(newImpl.address));
+
+    // Existing wallet's storage is preserved across the beacon swap.
+    assert.equal(
+      getAddress(await wallet.read.owner()),
+      getAddress(master.account.address)
+    );
+    const bal = await publicClient.getBalance({ address: wallet.address });
+    assert.equal(bal, parseEther("10"));
+  });
+
+  it("non-owner cannot upgrade iWallet implementation", async () => {
+    const { factory } = await deployFactory();
+    const newImpl = await viem.deployContract("iWallet");
+    await assert.rejects(
+      factory.write.upgradeImplementation([newImpl.address], {
+        account: attacker.account,
+      }),
+      /OwnableUnauthorizedAccount/
+    );
+  });
+
+  it("factory itself is UUPS-upgradeable by its owner", async () => {
+    const { factory } = await deployFactory();
+    const newFactoryImpl = await viem.deployContract("iWalletFactory");
+
+    await factory.write.upgradeToAndCall([newFactoryImpl.address, "0x"], {
+      account: master.account,
+    });
+
+    // State preserved — beacon address is unchanged after factory upgrade.
+    const beacon = await factory.read.beacon();
+    assert.notEqual(beacon, zeroAddress);
+  });
+
+  it("non-owner cannot UUPS-upgrade the factory", async () => {
+    const { factory } = await deployFactory();
+    const newFactoryImpl = await viem.deployContract("iWalletFactory");
+    await assert.rejects(
+      factory.write.upgradeToAndCall([newFactoryImpl.address, "0x"], {
+        account: attacker.account,
+      }),
+      /OwnableUnauthorizedAccount/
+    );
+  });
+
+  it("factory rejects double initialization", async () => {
+    const { factory, walletImpl } = await deployFactory();
+    await assert.rejects(
+      factory.write.initialize(
+        [master.account.address, walletImpl.address],
+        { account: master.account }
+      ),
+      /InvalidInitialization/
+    );
   });
 });

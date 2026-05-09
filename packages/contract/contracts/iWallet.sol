@@ -2,11 +2,18 @@
 pragma solidity ^0.8.28;
 
 import {Policy, Call, IiWallet} from "./interfaces/IiWallet.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /// @title iWallet — agent-bounded smart wallet
 /// @notice Holds funds. Owner (master EOA) has full control. Sessions are
 ///         scoped EOAs that can act only within their per-session policy.
-contract iWallet is IiWallet {
+/// @dev Deployed as the implementation behind a per-master `BeaconProxy` (see
+///      `iWalletFactory`). The factory's owner can upgrade every wallet's
+///      logic in one transaction by pointing the beacon at a new
+///      implementation. OZ v5's `Initializable` uses ERC-7201 namespaced
+///      storage, so the slot layout below stays stable across upgrades; new
+///      fields go before `__gap` and shrink it accordingly.
+contract iWallet is IiWallet, Initializable {
     // ── ERC-1271 ────────────────────────────────────────────────
     bytes4 internal constant ERC1271_MAGIC = 0x1626ba7e;
     bytes4 internal constant ERC1271_INVALID = 0xffffffff;
@@ -33,8 +40,6 @@ contract iWallet is IiWallet {
     mapping(address => uint256) public globalTokenDailyLimit;
     mapping(uint256 => mapping(address => uint256)) public globalTokenSpent;
 
-    bool private _initialized;
-
     modifier onlyOwner() {
         require(msg.sender == owner, "iWallet: not owner");
         _;
@@ -45,19 +50,22 @@ contract iWallet is IiWallet {
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address _owner,
         uint256 _globalDailyETHLimit,
         address[] calldata _globalTokens,
         uint256[] calldata _globalTokenLimits
-    ) external {
-        require(!_initialized, "iWallet: already init");
+    ) external initializer {
         require(_owner != address(0), "iWallet: zero owner");
         require(
             _globalTokens.length == _globalTokenLimits.length,
             "iWallet: len mismatch"
         );
-        _initialized = true;
         owner = _owner;
         globalDailyETHLimit = _globalDailyETHLimit;
         for (uint256 i = 0; i < _globalTokens.length; i++) {
@@ -447,4 +455,9 @@ contract iWallet is IiWallet {
     function _currentDay() internal view returns (uint256) {
         return block.timestamp / 86400;
     }
+
+    /// @dev Reserved storage slots for future upgrades. Subtract from this
+    ///      array's length when adding new state variables to keep the
+    ///      layout stable for existing BeaconProxy instances.
+    uint256[50] private __gap;
 }

@@ -1,0 +1,25 @@
+{
+  "chainId": 16602,
+  "network": "0G Galileo Testnet",
+  "rpcUrl": "https://evmrpc-testnet.0g.ai",
+  "blockExplorer": "https://chainscan-galileo.0g.ai",
+  "deploymentId": "chain-16602-v2",
+  "contracts": {
+    "iWalletFactoryProxy": "0xCF1f2860BA28aD3c7BCfCc29ab34c2f70D64F4ca",
+    "iWalletFactoryImpl": "0xc8e9A0E31C955B8b053f86f752BaaB50113288DD",
+    "iWalletImpl": "0x0A1bDd15716E6cF9b8fDF4DAc300524e56704C0e",
+    "beacon": "0x820824425490f31E3e744867e803263368a2DA11"
+  },
+  "deployer": "0x6E3D7867E45b7B40AF941a8ba51848B3a9b28406",
+  "owner": "0x6E3D7867E45b7B40AF941a8ba51848B3a9b28406",
+  "verified": true,
+  "verificationProvider": "etherscan (galileoscan via /open/api)",
+  "upgradePaths": {
+    "perWalletLogic": "factory.upgradeImplementation(newImpl)  — onlyOwner; affects every wallet ever spawned by this factory",
+    "factoryLogic": "factoryProxy.upgradeToAndCall(newFactoryImpl, 0x)  — onlyOwner; UUPS"
+  },
+  "previousDeployment": {
+    "note": "Old non-upgradable factory at 0xd350F7C77333e0E1147811346d920887990d160D is now superseded. Any wallets spawned by it remain at their original addresses with the old immutable code.",
+    "factory": "0xd350F7C77333e0E1147811346d920887990d160D"
+  }
+}

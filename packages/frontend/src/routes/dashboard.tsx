@@ -28,12 +28,17 @@ import {
   type SupportedToken,
 } from "@iwallet/tokens";
 import {
+  Activity,
   ArrowUpRight,
+  Ban,
   Check,
+  Clock,
   Copy,
   ExternalLink,
   KeyRound,
   Loader2,
+  Pencil,
+  Power,
   RefreshCw,
   Wallet,
   X,
@@ -186,11 +191,19 @@ function DashboardPage() {
       )}
 
       <section className="island-shell rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Sessions</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5 text-[var(--lagoon-deep)]" />
+            <h2 className="text-lg font-semibold">Sessions</h2>
+            {sessions.length > 0 && (
+              <span className="rounded-full bg-[var(--lagoon-deep)]/10 px-2 py-0.5 text-xs font-medium text-[var(--lagoon-deep)]">
+                {sessions.filter((s) => !s.revokedAt).length} active
+              </span>
+            )}
+          </div>
           <Link
             to="/connect"
-            className="text-xs underline text-[var(--lagoon-deep)]"
+            className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium opacity-80 transition hover:opacity-100"
           >
             + Provision new
           </Link>
@@ -213,6 +226,8 @@ function DashboardPage() {
                 key={s.sessionAddress}
                 session={s}
                 iWalletAddress={iWalletAddr}
+                chainId={chainId}
+                nativeSymbol={nativeSymbol}
                 onChanged={() => setRefreshKey((k) => k + 1)}
               />
             ))}
@@ -223,13 +238,25 @@ function DashboardPage() {
   );
 }
 
+interface TokenUsage {
+  address: `0x${string}`;
+  symbol: string;
+  decimals: number;
+  cap: bigint;
+  spent: bigint;
+}
+
 function SessionRow({
   session,
   iWalletAddress,
+  chainId,
+  nativeSymbol,
   onChanged,
 }: {
   session: SessionListItem;
   iWalletAddress: `0x${string}` | undefined;
+  chainId: number;
+  nativeSymbol: string;
   onChanged: () => void;
 }) {
   const publicClient = usePublicClient();
@@ -237,59 +264,180 @@ function SessionRow({
 
   const [expanded, setExpanded] = useState(false);
   const [policy, setPolicy] = useState<OnChainPolicy | null>(null);
+  const [ethSpent, setEthSpent] = useState<bigint | null>(null);
+  const [tokenUsage, setTokenUsage] = useState<TokenUsage[]>([]);
   const [tokenDecimals, setTokenDecimals] = useState<number[]>([]);
   const [form, setForm] = useState<PolicyForm | null>(null);
   const [busy, setBusy] = useState<"idle" | "saving" | "revoking">("idle");
   const [err, setErr] = useState<string | null>(null);
 
-  // Lazy-load on expand
+  const explorer = explorerForChain(chainId);
+  const supportedTokens = useMemo(() => getSupportedTokens(chainId), [chainId]);
+
+  // Eager-load policy + daily-spent for the cap progress bars (single
+  // multicall: getSessionPolicy + getSessionDailyEthSpent + per-token
+  // getSessionDailyTokenSpent + per-token decimals/symbol).
   useEffect(() => {
-    if (!expanded || !iWalletAddress || !publicClient) return;
-    if (policy) return;
+    if (!iWalletAddress || !publicClient) return;
+    // Skip the live read for revoked sessions — policy is irrelevant.
+    if (session.revokedAt) return;
+    let cancelled = false;
     (async () => {
       try {
+        // Load policy first so we know how many tokens to pull next.
         const p = (await publicClient.readContract({
           address: iWalletAddress,
           abi: IWALLET_ABI,
           functionName: "getSessionPolicy",
           args: [session.sessionAddress as `0x${string}`],
         })) as OnChainPolicy;
+        if (cancelled) return;
         setPolicy(p);
+
         const erc20Abi = parseAbi([
           "function decimals() view returns (uint8)",
+          "function symbol() view returns (string)",
         ]);
-        const dec = await Promise.all(
-          p.allowedTokens.map((t) =>
-            publicClient
-              .readContract({
-                address: t,
-                abi: erc20Abi,
-                functionName: "decimals",
-              })
-              .then((d) => Number(d))
-              .catch(() => 18)
-          )
-        );
-        setTokenDecimals(dec);
-        setForm({
-          dailyETH: formatEther(p.dailyETHLimit),
-          allowedRecipients: p.allowedContracts.join(", "),
-          tokensRaw: p.allowedTokens
-            .map((t, i) => {
-              const d = dec[i] ?? 18;
-              const human = formatUnits(p.tokenDailyLimits[i] ?? 0n, d);
-              return d === 18 ? `${t},${human}` : `${t},${human},${d}`;
-            })
-            .join("\n"),
-          allowedSpenders: p.allowedSpenders.join(", "),
-          cooldownSeconds: p.cooldownSeconds.toString(),
-          expiresAtUnix: p.expiresAt.toString(),
+
+        // Build a single multicall for ETH spent + each token's spent +
+        // decimals/symbol fallbacks for tokens not in the registry.
+        const calls: Array<{
+          address: `0x${string}`;
+          abi: typeof IWALLET_ABI | typeof erc20Abi;
+          functionName: string;
+          args?: readonly unknown[];
+        }> = [
+          {
+            address: iWalletAddress,
+            abi: IWALLET_ABI,
+            functionName: "getSessionDailyEthSpent",
+            args: [session.sessionAddress as `0x${string}`],
+          },
+        ];
+
+        const tokenInfo: Array<{
+          address: `0x${string}`;
+          symbol?: string;
+          decimals?: number;
+        }> = p.allowedTokens.map((t) => {
+          const lower = t.toLowerCase();
+          const hint = supportedTokens.find(
+            (s) => s.address.toLowerCase() === lower
+          );
+          return {
+            address: t,
+            symbol: hint?.symbol,
+            decimals: hint?.decimals,
+          };
         });
+
+        // Token spent reads (one per token).
+        for (const t of p.allowedTokens) {
+          calls.push({
+            address: iWalletAddress,
+            abi: IWALLET_ABI,
+            functionName: "getSessionDailyTokenSpent",
+            args: [session.sessionAddress as `0x${string}`, t],
+          });
+        }
+        // For tokens missing decimals/symbol from the registry, read on-chain.
+        for (let i = 0; i < tokenInfo.length; i++) {
+          if (tokenInfo[i].decimals === undefined) {
+            calls.push({
+              address: tokenInfo[i].address,
+              abi: erc20Abi,
+              functionName: "decimals",
+            });
+          }
+        }
+        for (let i = 0; i < tokenInfo.length; i++) {
+          if (tokenInfo[i].symbol === undefined) {
+            calls.push({
+              address: tokenInfo[i].address,
+              abi: erc20Abi,
+              functionName: "symbol",
+            });
+          }
+        }
+
+        const results = (await publicClient.multicall({
+          contracts: calls as never,
+          allowFailure: true,
+        })) as Array<
+          | { status: "success"; result: unknown }
+          | { status: "failure"; error: unknown }
+        >;
+        if (cancelled) return;
+
+        // Reconstruct positions.
+        let cursor = 0;
+        const ethR = results[cursor++];
+        setEthSpent(ethR.status === "success" ? (ethR.result as bigint) : 0n);
+
+        const tokenSpents: bigint[] = [];
+        for (let i = 0; i < p.allowedTokens.length; i++) {
+          const r = results[cursor++];
+          tokenSpents.push(r.status === "success" ? (r.result as bigint) : 0n);
+        }
+        for (let i = 0; i < tokenInfo.length; i++) {
+          if (tokenInfo[i].decimals === undefined) {
+            const r = results[cursor++];
+            tokenInfo[i].decimals =
+              r.status === "success" ? Number(r.result as bigint | number) : 18;
+          }
+        }
+        for (let i = 0; i < tokenInfo.length; i++) {
+          if (tokenInfo[i].symbol === undefined) {
+            const r = results[cursor++];
+            tokenInfo[i].symbol =
+              r.status === "success" ? String(r.result) : "?";
+          }
+        }
+
+        const usage: TokenUsage[] = p.allowedTokens.map((addr, i) => ({
+          address: addr,
+          symbol: tokenInfo[i].symbol ?? "?",
+          decimals: tokenInfo[i].decimals ?? 18,
+          cap: p.tokenDailyLimits[i] ?? 0n,
+          spent: tokenSpents[i] ?? 0n,
+        }));
+        setTokenUsage(usage);
+        setTokenDecimals(usage.map((u) => u.decimals));
       } catch (e) {
-        setErr(e instanceof Error ? e.message : String(e));
+        if (!cancelled) {
+          console.error("session usage load failed:", e);
+        }
       }
     })();
-  }, [expanded, iWalletAddress, publicClient, session.sessionAddress, policy]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    iWalletAddress,
+    publicClient,
+    session.sessionAddress,
+    session.revokedAt,
+    supportedTokens,
+  ]);
+
+  // Build the editor form once we have policy + decimals (lazy on expand).
+  useEffect(() => {
+    if (!expanded || !policy || form) return;
+    setForm({
+      dailyETH: formatEther(policy.dailyETHLimit),
+      allowedRecipients: policy.allowedContracts.join(", "),
+      tokensRaw: policy.allowedTokens
+        .map((t, i) => {
+          const d = tokenDecimals[i] ?? 18;
+          const human = formatUnits(policy.tokenDailyLimits[i] ?? 0n, d);
+          return d === 18 ? `${t},${human}` : `${t},${human},${d}`;
+        })
+        .join("\n"),
+      allowedSpenders: policy.allowedSpenders.join(", "),
+      cooldownSeconds: policy.cooldownSeconds.toString(),
+      expiresAtUnix: policy.expiresAt.toString(),
+    });
+  }, [expanded, policy, tokenDecimals, form]);
 
   const handleSave = async () => {
     if (!iWalletAddress || !publicClient || !form) return;
@@ -378,41 +526,120 @@ function SessionRow({
     }
   };
 
+  // Status: revoked > expired (policy.expiresAt past) > active
+  const nowSec = BigInt(Math.floor(Date.now() / 1000));
+  const isRevoked = !!session.revokedAt;
+  const isExpired =
+    !isRevoked &&
+    !!policy &&
+    policy.expiresAt > 0n &&
+    nowSec > policy.expiresAt;
+  const status: "active" | "revoked" | "expired" = isRevoked
+    ? "revoked"
+    : isExpired
+      ? "expired"
+      : "active";
+
   return (
-    <li className="rounded border p-3">
-      <div className="flex items-start justify-between gap-2">
+    <li className="rounded-xl border bg-white/30 p-4 transition hover:border-[var(--lagoon-deep)]/50">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <code className="block break-all text-xs sm:text-sm">
-            {session.sessionAddress}
-          </code>
-          <p className="opacity-70 text-xs mt-1">
+          <div className="flex items-center gap-2">
+            <code className="truncate font-mono text-xs sm:text-sm">
+              {session.sessionAddress.slice(0, 14)}…
+              {session.sessionAddress.slice(-6)}
+            </code>
+            <CopyAddress value={session.sessionAddress} />
+            {explorer && (
+              <a
+                href={`${explorer}/address/${session.sessionAddress}`}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="rounded p-1 opacity-60 transition hover:opacity-100"
+                aria-label="Open on explorer"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            <StatusPill status={status} />
+          </div>
+          <p className="mt-1 text-xs opacity-70">
             {session.label ?? "(unlabeled)"} · created{" "}
             {new Date(session.createdAt).toLocaleString()}
-            {session.revokedAt ? " · REVOKED" : ""}
+            {session.revokedAt &&
+              ` · revoked ${new Date(session.revokedAt).toLocaleString()}`}
           </p>
         </div>
-        <div className="flex flex-col gap-1 text-xs">
-          {!session.revokedAt && (
+        <div className="flex shrink-0 items-center gap-2 text-xs">
+          {!isRevoked && (
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="underline text-[var(--lagoon-deep)]"
+              className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 opacity-80 transition hover:opacity-100"
             >
-              {expanded ? "Close" : "Edit policy"}
+              <Pencil className="h-3 w-3" />
+              {expanded ? "Close" : "Edit"}
             </button>
           )}
-          {!session.revokedAt && (
+          {!isRevoked && (
             <button
               type="button"
               onClick={handleRevoke}
               disabled={busy !== "idle"}
-              className="text-red-700 underline disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-full border border-red-400/40 px-2.5 py-1 text-red-700 transition hover:bg-red-500/10 disabled:opacity-50"
             >
-              {busy === "revoking" ? "Revoking…" : "Revoke"}
+              {busy === "revoking" ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Revoking…
+                </>
+              ) : (
+                <>
+                  <Power className="h-3 w-3" />
+                  Revoke
+                </>
+              )}
             </button>
           )}
         </div>
       </div>
+
+      {/* Daily-cap progress bars */}
+      {policy && !isRevoked && (
+        <div className="mt-4 space-y-3">
+          <CapBar
+            label="ETH spend today"
+            spent={ethSpent ?? 0n}
+            cap={policy.dailyETHLimit}
+            decimals={18}
+            symbol={nativeSymbol}
+          />
+          {tokenUsage.map((u) => (
+            <CapBar
+              key={u.address}
+              label={`${u.symbol} spend today`}
+              spent={u.spent}
+              cap={u.cap}
+              decimals={u.decimals}
+              symbol={u.symbol}
+            />
+          ))}
+          {policy.cooldownSeconds > 0n && (
+            <p className="flex items-center gap-1 text-xs opacity-70">
+              <Clock className="h-3 w-3" />
+              Cooldown: {policy.cooldownSeconds.toString()}s between txs
+            </p>
+          )}
+          {policy.expiresAt > 0n && (
+            <p className="flex items-center gap-1 text-xs opacity-70">
+              <Clock className="h-3 w-3" />
+              {isExpired ? "Expired" : "Expires"}{" "}
+              {new Date(Number(policy.expiresAt) * 1000).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )}
 
       {expanded && (
         <div className="mt-3 space-y-3 text-sm">
@@ -1219,4 +1446,97 @@ function BalanceCard({
     );
   }
   return Inner;
+}
+
+// ── Session status pill ─────────────────────────────────────────────
+
+function StatusPill({
+  status,
+}: {
+  status: "active" | "revoked" | "expired";
+}) {
+  if (status === "revoked") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">
+        <Ban className="h-3 w-3" />
+        Revoked
+      </span>
+    );
+  }
+  if (status === "expired") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+        <Clock className="h-3 w-3" />
+        Expired
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+      <Activity className="h-3 w-3" />
+      Active
+    </span>
+  );
+}
+
+// ── Cap progress bar ────────────────────────────────────────────────
+// Renders a labeled "spent / cap" line with a horizontal progress fill,
+// color-coded by how close the session is to its limit. Handles cap=0
+// (which the contract treats as "asset disabled") with a clear callout.
+
+function CapBar({
+  label,
+  spent,
+  cap,
+  decimals,
+  symbol,
+}: {
+  label: string;
+  spent: bigint;
+  cap: bigint;
+  decimals: number;
+  symbol: string;
+}) {
+  const capDisabled = cap === 0n;
+  const pct = capDisabled ? 0 : Number((spent * 10000n) / cap) / 100; // 0–100 with 2 decimals
+  const clamped = Math.min(100, Math.max(0, pct));
+  const fillColor =
+    clamped >= 100
+      ? "bg-red-500"
+      : clamped >= 80
+        ? "bg-amber-500"
+        : "bg-emerald-500";
+
+  const spentH = formatUnits(spent, decimals);
+  const capH = capDisabled ? "—" : formatUnits(cap, decimals);
+
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+        <span className="opacity-80">{label}</span>
+        <code className="tabular-nums opacity-90">
+          {spentH}
+          {!capDisabled && (
+            <>
+              {" / "}
+              <span className="opacity-70">
+                {capH} {symbol}
+              </span>
+            </>
+          )}
+          {capDisabled && (
+            <span className="ml-1 text-[10px] opacity-60">
+              ({symbol} disabled)
+            </span>
+          )}
+        </code>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
+        <div
+          className={`h-full ${fillColor} transition-all`}
+          style={{ width: `${capDisabled ? 0 : clamped}%` }}
+        />
+      </div>
+    </div>
+  );
 }

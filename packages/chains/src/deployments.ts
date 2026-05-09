@@ -17,8 +17,8 @@ export const FACTORY_ADDRESSES: Record<number, `0x${string}`> = {
   // 0G Galileo Testnet (upgradable: ERC1967 proxy → iWalletFactory + Beacon)
   16602: "0xCF1f2860BA28aD3c7BCfCc29ab34c2f70D64F4ca",
 
-  // 0G Mainnet
-  16661: "0x0",
+  // 0G Aristotle Mainnet (upgradable: ERC1967 proxy → iWalletFactory + Beacon)
+  16661: "0x08a7Ea416AF2b8DD4614aa6A314ee7c96F8aA68d",
 };
 
 export function getFactoryAddressForChain(

@@ -1,0 +1,6 @@
+{
+  "iWalletImplementationsModule#iWalletFactoryImplementation": "0x1BA6307DCd2E3Cb997BD69D0155D76356D47FBcC",
+  "iWalletImplementationsModule#iWalletImplementation": "0x06294Df87044bDb6d68ea44a8315701d75C72c9e",
+  "iWalletFactoryModule#iWalletFactory": "0x08a7Ea416AF2b8DD4614aa6A314ee7c96F8aA68d",
+  "iWalletFactoryModule#iWalletFactoryProxy": "0x08a7Ea416AF2b8DD4614aa6A314ee7c96F8aA68d"
+}

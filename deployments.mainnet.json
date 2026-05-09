@@ -1,0 +1,24 @@
+{
+  "chainId": 16661,
+  "network": "0G Aristotle Mainnet",
+  "rpcUrl": "https://evmrpc.0g.ai",
+  "blockExplorer": "https://chainscan.0g.ai",
+  "deploymentId": "chain-16661",
+  "contracts": {
+    "iWalletFactoryProxy": "0x08a7Ea416AF2b8DD4614aa6A314ee7c96F8aA68d",
+    "iWalletFactoryImpl": "0x1BA6307DCd2E3Cb997BD69D0155D76356D47FBcC",
+    "iWalletImpl": "0x06294Df87044bDb6d68ea44a8315701d75C72c9e",
+    "beacon": "0x99f0571a56F290C04F0698ee4868db152E8fC769"
+  },
+  "deployer": "0x6E3D7867E45b7B40AF941a8ba51848B3a9b28406",
+  "owner": "0x6E3D7867E45b7B40AF941a8ba51848B3a9b28406",
+  "verified": true,
+  "verificationProvider": "etherscan (aristotle via /open/api)",
+  "upgradePaths": {
+    "perWalletLogic": "factory.upgradeImplementation(newImpl) — onlyOwner; affects every wallet ever spawned by this factory",
+    "factoryLogic": "factoryProxy.upgradeToAndCall(newFactoryImpl, 0x) — onlyOwner; UUPS"
+  },
+  "knownLimitations": [
+    "Bug 1 (architectural): a session can spend tokens beyond its tokenDailyLimit by calling a contract in allowedContracts that internally pulls already-approved tokens via transferFrom. The wallet's calldata-aware gating only fires for direct ERC-20 selectors, so contract-mediated pulls bypass the cap. Mitigate at the SDK / FE layer — refuse to deploy a session policy whose allowedContracts overlap with router-style approvals."
+  ]
+}

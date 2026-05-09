@@ -7,9 +7,24 @@
   "contracts": {
     "iWalletFactoryProxy": "0xCF1f2860BA28aD3c7BCfCc29ab34c2f70D64F4ca",
     "iWalletFactoryImpl": "0xc8e9A0E31C955B8b053f86f752BaaB50113288DD",
-    "iWalletImpl": "0x0A1bDd15716E6cF9b8fDF4DAc300524e56704C0e",
+    "iWalletImpl": "0xE41A318Ea4A5B8dd731Cb84C89E5Bd3f98E41706",
     "beacon": "0x820824425490f31E3e744867e803263368a2DA11"
   },
+  "implHistory": [
+    {
+      "address": "0x0A1bDd15716E6cF9b8fDF4DAc300524e56704C0e",
+      "active": false,
+      "deployedAt": "2026-05-09T07:00:00.000Z",
+      "supersededAt": "2026-05-09T07:30:00.000Z",
+      "note": "Initial impl. Had bug 2: addSession did not clear sessionEthSpent / sessionTokenSpent / lastTxTimestamp on re-add."
+    },
+    {
+      "address": "0xE41A318Ea4A5B8dd731Cb84C89E5Bd3f98E41706",
+      "active": true,
+      "deployedAt": "2026-05-09T07:30:00.000Z",
+      "note": "Bug 2 fix. addSession now resets per-session counters and cooldown clock. Beacon-rolled via factory.upgradeImplementation in tx 0xabd5a80b486c7687eb2913fb8233dafb570ebcfb30548deb876ae77fc5808747."
+    }
+  ],
   "deployer": "0x6E3D7867E45b7B40AF941a8ba51848B3a9b28406",
   "owner": "0x6E3D7867E45b7B40AF941a8ba51848B3a9b28406",
   "verified": true,

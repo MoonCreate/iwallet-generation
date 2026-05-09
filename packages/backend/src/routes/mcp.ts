@@ -13,7 +13,7 @@
  */
 
 import { Elysia } from "elysia";
-import { localhost, zeroGTestnet } from "@iwallet/chains";
+import { pickChain } from "@iwallet/chains";
 import { runTool, toolDefinitions } from "../wallet/tools.ts";
 import { lookupSession } from "../store/sessions.ts";
 
@@ -36,8 +36,7 @@ interface JsonRpcResponse {
 }
 
 function chainFor(chainId: number) {
-  if (chainId === localhost.id) return localhost;
-  return zeroGTestnet;
+  return pickChain(chainId);
 }
 
 function rpcResult(id: string | number | null | undefined, result: unknown): JsonRpcResponse {
@@ -118,13 +117,12 @@ async function dispatch(
         name: string;
         arguments: Record<string, unknown>;
       };
+      const chain = chainFor(sess.chainId);
       const out = await runTool(name, args ?? {}, {
         privateKey: sess.privateKey,
         iWalletAddress: sess.iWalletAddress,
-        chain: chainFor(sess.chainId),
-        rpcUrl:
-          process.env.RPC_URL ??
-          chainFor(sess.chainId).rpcUrls.default.http[0],
+        chain,
+        rpcUrl: chain.rpcUrls.default.http[0],
       });
       if (out.ok) {
         const text =

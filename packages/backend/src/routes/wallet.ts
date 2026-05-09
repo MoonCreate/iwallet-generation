@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { keccak256, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { localhost, zeroGTestnet } from "@iwallet/chains";
+import { defaultChainId, pickChain } from "@iwallet/chains";
 import { runTool, toolDefinitions, type SessionContext } from "../wallet/tools.ts";
 import {
   createSession,
@@ -10,10 +10,6 @@ import {
   revokeBearersForSession,
   listSessionsForWallet,
 } from "../store/sessions.ts";
-
-const defaultChain =
-  process.env.USE_LOCALHOST === "true" ? localhost : zeroGTestnet;
-const RPC_URL = process.env.RPC_URL ?? defaultChain.rpcUrls.default.http[0];
 
 function deriveSessionPrivateKey(
   signature: `0x${string}`,
@@ -35,12 +31,12 @@ function bearerFromHeaders(
 function ctxFromBearer(bearer: string): SessionContext | null {
   const sess = lookupSession(bearer);
   if (!sess) return null;
-  const chain = sess.chainId === localhost.id ? localhost : zeroGTestnet;
+  const chain = pickChain(sess.chainId);
   return {
     privateKey: sess.privateKey,
     iWalletAddress: sess.iWalletAddress,
     chain,
-    rpcUrl: RPC_URL,
+    rpcUrl: chain.rpcUrls.default.http[0],
   };
 }
 
@@ -57,19 +53,22 @@ export const walletRoutes = new Elysia({ prefix: "/api/wallet" })
       );
       const account = privateKeyToAccount(privateKey);
       const bearerToken = crypto.randomUUID();
+      const resolvedChainId = chainId ?? defaultChainId();
+      // Validate up front so we don't issue a bearer for an unsupported chain.
+      pickChain(resolvedChainId);
       createSession({
         bearerToken,
         iWalletAddress: iWalletAddress as string,
         sessionAddress: account.address,
         privateKey,
-        chainId: chainId ?? defaultChain.id,
+        chainId: resolvedChainId,
         label: label,
       });
       return {
         bearerToken,
         sessionAddress: account.address,
         iWalletAddress,
-        chainId: chainId ?? defaultChain.id,
+        chainId: resolvedChainId,
       };
     },
     {

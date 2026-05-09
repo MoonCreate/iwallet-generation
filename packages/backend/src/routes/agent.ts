@@ -3,14 +3,12 @@ import { keccak256, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { runAgentChat, type ChatMessage } from "../agent/index.ts";
 import { getEvents, startIndexer } from "../indexer/index.ts";
-import { localhost, zeroGTestnet } from "@iwallet/chains";
-
-const chain = process.env.USE_LOCALHOST === "true" ? localhost : zeroGTestnet;
-const RPC_URL = process.env.RPC_URL ?? chain.rpcUrls.default.http[0];
+import { defaultChainId, pickChain } from "@iwallet/chains";
 
 interface AgentSession {
   privateKey: `0x${string}`;
   iWalletAddress: `0x${string}`;
+  chainId: number;
 }
 
 const sessions = new Map<string, AgentSession>();
@@ -47,7 +45,11 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
   .post(
     "/session",
     async ({ body }) => {
-      const { signature, index, iWalletAddress } = body;
+      const { signature, index, iWalletAddress, chainId } = body;
+      const resolvedChainId = chainId ?? defaultChainId();
+      const chain = pickChain(resolvedChainId);
+      const rpcUrl = chain.rpcUrls.default.http[0];
+
       const privateKey = deriveSessionPrivateKey(
         signature as `0x${string}`,
         index ?? 0
@@ -58,17 +60,23 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
       sessions.set(sessionId, {
         privateKey,
         iWalletAddress: iWalletAddress as `0x${string}`,
+        chainId: resolvedChainId,
       });
 
-      startIndexer(iWalletAddress as `0x${string}`, chain, RPC_URL);
+      startIndexer(iWalletAddress as `0x${string}`, chain, rpcUrl);
 
-      return { sessionId, sessionAddress: account.address };
+      return {
+        sessionId,
+        sessionAddress: account.address,
+        chainId: resolvedChainId,
+      };
     },
     {
       body: t.Object({
         signature: t.String(),
         index: t.Optional(t.Number()),
         iWalletAddress: t.String(),
+        chainId: t.Optional(t.Number()),
       }),
     }
   )
@@ -90,6 +98,8 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
         return { error: "OPENAI_API_KEY not configured" };
       }
 
+      const chain = pickChain(session.chainId);
+      const rpcUrl = chain.rpcUrls.default.http[0];
       const stream = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
@@ -100,7 +110,7 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
                 privateKey: session.privateKey,
                 iWalletAddress: session.iWalletAddress,
                 chain,
-                rpcUrl: RPC_URL,
+                rpcUrl,
               },
               apiKey
             );

@@ -17,8 +17,14 @@ const MULTICALL3 = {
   blockCreated: 0,
 };
 
+// 0G's native token ticker is "0G" — viem's bundled chain definitions
+// still carry the deprecated "A0GI" Newton-testnet symbol. Override here
+// so the FE / wallet UI shows the right ticker on every chain.
+const NATIVE_OG = { name: "0G", symbol: "0G", decimals: 18 } as const;
+
 export const zeroGMainnet = defineChain({
   ...mainnetBase,
+  nativeCurrency: NATIVE_OG,
   contracts: {
     ...mainnetBase.contracts,
     iWalletFactory: {
@@ -31,6 +37,7 @@ export const zeroGMainnet = defineChain({
 
 export const zeroGTestnet = defineChain({
   ...testnetBase,
+  nativeCurrency: NATIVE_OG,
   contracts: {
     ...testnetBase.contracts,
     iWalletFactory: {

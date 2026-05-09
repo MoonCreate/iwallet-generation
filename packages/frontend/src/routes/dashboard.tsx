@@ -25,9 +25,19 @@ import {
 import {
   getSupportedTokens,
   isNativeToken,
-  NATIVE_ADDRESS,
   type SupportedToken,
 } from "@iwallet/tokens";
+import {
+  ArrowUpRight,
+  Check,
+  Copy,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  RefreshCw,
+  Wallet,
+  X,
+} from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -130,45 +140,41 @@ function DashboardPage() {
     <main className="page-wrap mx-auto max-w-4xl px-4 py-12 space-y-6">
       <h1 className="display-title text-3xl font-bold">Dashboard</h1>
 
-      <section className="island-shell rounded-2xl p-6">
-        <h2 className="text-lg font-semibold mb-2">iWallet</h2>
-        <p className="text-sm">
-          Address:{" "}
-          <code className="break-all">{iWalletAddr ?? "—"}</code>
-        </p>
-        <p className="text-sm mt-2">
-          Status:{" "}
-          {hasCode === null
-            ? "checking…"
-            : hasCode
-              ? "Deployed"
-              : "Not deployed yet"}
-        </p>
-        {hasCode === false && (
-          <Link
-            to="/connect"
-            className="mt-3 inline-flex rounded-full bg-[var(--lagoon-deep)] px-4 py-2 text-sm font-semibold text-white"
-          >
-            Deploy & provision a session
-          </Link>
-        )}
-        {hasCode === true && (
-          <p className="text-sm mt-2">
-            Global ETH cap:{" "}
-            {globalCap !== undefined
-              ? `${formatEther(globalCap as bigint)} ${nativeSymbol}/day`
-              : "—"}
-          </p>
-        )}
-      </section>
-
-      {hasCode === true && iWalletAddr && address && (
-        <WalletBalances
+      {hasCode === true && iWalletAddr && address ? (
+        <WalletPanel
           iWalletAddress={iWalletAddr}
           masterAddress={address}
           nativeSymbol={nativeSymbol}
           chainId={chainId}
+          globalCap={globalCap as bigint | undefined}
         />
+      ) : (
+        <section className="island-shell rounded-2xl p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-[var(--lagoon-deep)]" />
+            <h2 className="text-lg font-semibold">iWallet</h2>
+          </div>
+          <p className="text-sm">
+            Address:{" "}
+            <code className="break-all">{iWalletAddr ?? "—"}</code>
+          </p>
+          <p className="mt-2 text-sm">
+            Status:{" "}
+            {hasCode === null
+              ? "checking…"
+              : hasCode
+                ? "Deployed"
+                : "Not deployed yet"}
+          </p>
+          {hasCode === false && (
+            <Link
+              to="/connect"
+              className="mt-3 inline-flex rounded-full bg-[var(--lagoon-deep)] px-4 py-2 text-sm font-semibold text-white"
+            >
+              Deploy & provision a session
+            </Link>
+          )}
+        </section>
       )}
 
       <section className="island-shell rounded-2xl p-6">
@@ -504,8 +510,40 @@ function useChainNativeSymbol(chainId: number | undefined): string {
   const { chain } = useAccount();
   if (chain?.nativeCurrency.symbol) return chain.nativeCurrency.symbol;
   // Defensive fallback when chain object isn't ready yet.
-  if (chainId === 16602 || chainId === 16661) return "OG";
+  if (chainId === 16602 || chainId === 16661) return "0G";
   return "ETH";
+}
+
+function explorerForChain(chainId: number | undefined): string {
+  if (chainId === 16602) return "https://chainscan-galileo.0g.ai";
+  if (chainId === 16661) return "https://chainscan.0g.ai";
+  return "";
+}
+
+function CopyAddress({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        } catch {
+          /* clipboard might be unavailable in some browser contexts */
+        }
+      }}
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs opacity-70 transition hover:bg-white/10 hover:opacity-100"
+      aria-label="Copy address"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
 }
 
 interface TokenBalance {
@@ -518,27 +556,26 @@ interface TokenBalance {
   isNative: boolean;
 }
 
-function WalletBalances({
+function WalletPanel({
   iWalletAddress,
   masterAddress,
   nativeSymbol,
   chainId,
+  globalCap,
 }: {
   iWalletAddress: `0x${string}`;
   masterAddress: `0x${string}`;
   nativeSymbol: string;
   chainId: number;
+  globalCap: bigint | undefined;
 }) {
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
 
-  const [tokenInputRaw, setTokenInputRaw] = useState("");
   const [tokens, setTokens] = useState<TokenBalance[]>([]);
-  const [recipient, setRecipient] = useState<string>(masterAddress);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [err, setErr] = useState<string | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+
+  const explorer = explorerForChain(chainId);
 
   // Supported tokens for this chain (native + ERC-20s like USDC/EURC).
   // Native is rendered through the same data path as ERC-20s — only the
@@ -548,14 +585,8 @@ function WalletBalances({
     [chainId]
   );
 
-  const userTokenAddrs = useMemo(() => {
-    return tokenInputRaw
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter((s) => isAddress(s) && s.toLowerCase() !== NATIVE_ADDRESS) as `0x${string}`[];
-  }, [tokenInputRaw]);
-
-  // Combined list — supported tokens first, then any user-added.
+  // Render the supported-tokens registry. (Custom-token entry was moved
+  // out of the panel — adding ad-hoc tokens belongs in the registry now.)
   const allTokenAddrs = useMemo(() => {
     const seen = new Set<string>();
     const out: Array<{ address: `0x${string}`; hint?: SupportedToken }> = [];
@@ -565,14 +596,8 @@ function WalletBalances({
       seen.add(key);
       out.push({ address: w.address, hint: w });
     }
-    for (const a of userTokenAddrs) {
-      const key = a.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ address: a });
-    }
     return out;
-  }, [supportedTokens, userTokenAddrs]);
+  }, [supportedTokens]);
 
   // Refresh balances when token list or refreshKey changes. One Multicall3
   // round-trip for everything: getEthBalance for native + balanceOf + (when
@@ -737,29 +762,173 @@ function WalletBalances({
     };
   }, [publicClient, iWalletAddress, allTokenAddrs, refreshKey, nativeSymbol]);
 
-  async function withdrawAll() {
+  const nothingToWithdraw = tokens.every((t) => t.balance === 0n);
+
+  return (
+    <>
+      <section className="island-shell rounded-2xl p-6">
+        {/* Header — title + address + actions */}
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-[var(--lagoon-deep)]" />
+              <h2 className="text-lg font-semibold">iWallet</h2>
+              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                Deployed
+              </span>
+            </div>
+            <div className="flex min-w-0 items-center gap-1 text-xs opacity-80">
+              <code className="truncate font-mono">{iWalletAddress}</code>
+              <CopyAddress value={iWalletAddress} />
+              {explorer && (
+                <a
+                  href={`${explorer}/address/${iWalletAddress}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 opacity-70 hover:bg-white/10 hover:opacity-100"
+                  aria-label="Open on explorer"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+            {globalCap !== undefined && (
+              <p className="mt-2 text-xs opacity-70">
+                Global cap:{" "}
+                <span className="font-semibold">
+                  {formatEther(globalCap)} {nativeSymbol}/day
+                </span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium opacity-80 transition hover:opacity-100"
+              aria-label="Refresh balances"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => setWithdrawOpen(true)}
+              disabled={nothingToWithdraw}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--lagoon-deep)] px-4 py-1.5 text-xs font-semibold text-white transition disabled:opacity-50"
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+              Withdraw
+            </button>
+          </div>
+        </div>
+
+        {/* Balances grid */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {tokens.length === 0 ? (
+            <p className="col-span-full flex items-center gap-2 text-sm opacity-60">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading balances…
+            </p>
+          ) : (
+            tokens.map((t) => (
+              <BalanceCard
+                key={t.address}
+                symbol={t.symbol}
+                name={t.isNative ? t.name : t.address}
+                amount={formatUnits(t.balance, t.decimals)}
+                isNative={t.isNative}
+                logo={t.logo}
+                href={
+                  t.isNative || !explorer
+                    ? undefined
+                    : `${explorer}/token/${t.address}`
+                }
+              />
+            ))
+          )}
+        </div>
+
+        <p className="mt-4 flex items-center gap-1.5 text-xs opacity-60">
+          <KeyRound className="h-3 w-3" />
+          Withdraw is <code>onlyOwner</code> — connect with{" "}
+          {masterAddress.slice(0, 10)}…{masterAddress.slice(-4)} to use it.
+        </p>
+      </section>
+
+      {withdrawOpen && (
+        <WithdrawDialog
+          iWalletAddress={iWalletAddress}
+          masterAddress={masterAddress}
+          tokens={tokens}
+          onClose={() => {
+            setWithdrawOpen(false);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Withdraw Dialog ───────────────────────────────────────────────────
+
+function WithdrawDialog({
+  iWalletAddress,
+  masterAddress,
+  tokens,
+  onClose,
+}: {
+  iWalletAddress: `0x${string}`;
+  masterAddress: `0x${string}`;
+  tokens: TokenBalance[];
+  onClose: () => void;
+}) {
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
+
+  const [recipient, setRecipient] = useState<string>(masterAddress);
+  // Per-asset selection — default to all non-zero ticked.
+  const [selected, setSelected] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      tokens.map((t) => [t.address.toLowerCase(), t.balance > 0n])
+    )
+  );
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+
+  const validRecipient = isAddress(recipient);
+  const toWithdraw = tokens.filter(
+    (t) => t.balance > 0n && selected[t.address.toLowerCase()]
+  );
+
+  async function execute() {
     if (!publicClient) return;
-    if (!isAddress(recipient)) {
+    if (!validRecipient) {
       setErr("Recipient is not a valid address");
+      return;
+    }
+    if (toWithdraw.length === 0) {
+      setErr("Select at least one asset to withdraw");
       return;
     }
     setErr(null);
     setLogs([]);
     setWithdrawing(true);
-
     const append = (line: string) =>
       setLogs((prev) => [...prev, line]);
 
     try {
-      // Sort native first so gas accounting happens against the
-      // already-funded session EOA before token withdrawals consume more.
-      const sorted = [...tokens].sort(
+      // Sort native first so we don't get caught short on gas after
+      // draining a token first.
+      const sorted = [...toWithdraw].sort(
         (a, b) => Number(b.isNative) - Number(a.isNative)
       );
       for (const t of sorted) {
-        if (t.balance === 0n) continue;
         append(
-          `Withdrawing ${formatUnits(t.balance, t.decimals)} ${t.symbol} (${t.address})…`
+          `Withdrawing ${formatUnits(t.balance, t.decimals)} ${t.symbol}…`
         );
         const hash = await writeContractAsync({
           address: iWalletAddress,
@@ -775,11 +944,11 @@ function WalletBalances({
               append(`  tx ${reason} → ${replacement.transactionHash}`),
           });
         } catch (waitErr) {
-          // Side-channel verify via post-balance — native uses getBalance,
-          // ERC-20 uses balanceOf.
           let after: bigint;
           if (t.isNative) {
-            after = await publicClient.getBalance({ address: iWalletAddress });
+            after = await publicClient.getBalance({
+              address: iWalletAddress,
+            });
           } else {
             const erc20 = parseAbi([
               "function balanceOf(address) view returns (uint256)",
@@ -795,100 +964,164 @@ function WalletBalances({
         }
         append(`  ✓ ${hash}`);
       }
-
       append("Done.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setWithdrawing(false);
-      setRefreshKey((k) => k + 1);
     }
   }
 
-  const nothingToWithdraw = tokens.every((t) => t.balance === 0n);
-
   return (
-    <section className="island-shell rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold">Wallet balances</h2>
-        <button
-          type="button"
-          onClick={() => setRefreshKey((k) => k + 1)}
-          className="text-xs underline text-[var(--lagoon-deep)]"
-        >
-          Refresh
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {tokens.length === 0 ? (
-          <p className="col-span-full text-sm opacity-60">Loading balances…</p>
-        ) : (
-          tokens.map((t) => (
-            <BalanceCard
-              key={t.address}
-              symbol={t.symbol}
-              name={t.isNative ? t.name : t.address}
-              amount={formatUnits(t.balance, t.decimals)}
-              isNative={t.isNative}
-              logo={t.logo}
-              href={
-                t.isNative
-                  ? undefined
-                  : `https://chainscan-galileo.0g.ai/token/${t.address}`
-              }
-            />
-          ))
-        )}
-      </div>
-
-      <label className="mt-3 block text-xs">
-        Token addresses to track (one per line — paste any ERC-20 you want
-        to drain)
-        <textarea
-          value={tokenInputRaw}
-          onChange={(e) => setTokenInputRaw(e.target.value)}
-          rows={2}
-          className="mt-1 w-full rounded border px-2 py-1 font-mono text-xs"
-          placeholder="0x…"
-        />
-      </label>
-
-      <label className="mt-3 block text-xs">
-        Send everything to
-        <input
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-          className="mt-1 w-full rounded border px-2 py-1 font-mono text-xs"
-        />
-      </label>
-
-      <button
-        type="button"
-        onClick={withdrawAll}
-        disabled={withdrawing || nothingToWithdraw}
-        className="mt-3 w-full rounded-full bg-[var(--lagoon-deep)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={withdrawing ? undefined : onClose}
+    >
+      <div
+        className="island-shell w-full max-w-md rounded-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
       >
-        {withdrawing
-          ? "Withdrawing…"
-          : nothingToWithdraw
-            ? "Nothing to withdraw"
-            : `Withdraw all → ${recipient.slice(0, 10)}…`}
-      </button>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <ArrowUpRight className="h-5 w-5 text-[var(--lagoon-deep)]" />
+              <h3 className="text-lg font-semibold">Withdraw assets</h3>
+            </div>
+            <p className="text-xs opacity-70">
+              Drain selected assets out of your iWallet to a single recipient.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={withdrawing}
+            className="rounded-full p-1 opacity-70 transition hover:bg-white/10 hover:opacity-100 disabled:opacity-30"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-      {logs.length > 0 && (
-        <pre className="mt-3 whitespace-pre-wrap break-words rounded bg-black/5 p-2 text-xs">
-          {logs.join("\n")}
-        </pre>
-      )}
-      {err && (
-        <p className="mt-2 break-words text-xs text-red-700">{err}</p>
-      )}
-      <p className="mt-3 text-xs opacity-60">
-        Withdraw is <code>onlyOwner</code>. Connect with the master wallet
-        ({masterAddress.slice(0, 10)}…) to use this.
-      </p>
-    </section>
+        <label className="block">
+          <span className="text-xs font-medium opacity-80">Send to</span>
+          <input
+            value={recipient}
+            onChange={(e) => setRecipient(e.target.value)}
+            className={`mt-1 w-full rounded border px-2 py-1.5 font-mono text-xs ${
+              validRecipient ? "" : "border-red-500"
+            }`}
+            disabled={withdrawing}
+          />
+          {!validRecipient && (
+            <span className="text-xs text-red-700">
+              Not a valid address
+            </span>
+          )}
+        </label>
+
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium opacity-80">
+            Assets to withdraw
+          </p>
+          <ul className="divide-y rounded border">
+            {tokens.map((t) => {
+              const key = t.address.toLowerCase();
+              const isOn = !!selected[key];
+              const zero = t.balance === 0n;
+              return (
+                <li
+                  key={key}
+                  className={`flex items-center gap-3 p-3 ${
+                    zero ? "opacity-40" : ""
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isOn}
+                    disabled={zero || withdrawing}
+                    onChange={(e) =>
+                      setSelected((prev) => ({
+                        ...prev,
+                        [key]: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4"
+                  />
+                  {t.logo ? (
+                    <img
+                      src={t.logo}
+                      alt={t.symbol}
+                      className="h-7 w-7 rounded-full bg-white object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--lagoon-deep)]/10 text-xs font-semibold text-[var(--lagoon-deep)]">
+                      {t.symbol.slice(0, 3)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium leading-tight">
+                      {t.symbol}
+                    </p>
+                    <p className="truncate text-xs opacity-60">
+                      {t.isNative
+                        ? "native"
+                        : `${t.address.slice(0, 10)}…${t.address.slice(-4)}`}
+                    </p>
+                  </div>
+                  <code className="text-sm tabular-nums">
+                    {formatUnits(t.balance, t.decimals)}
+                  </code>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {logs.length > 0 && (
+          <pre className="mt-4 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded bg-black/10 p-2 text-xs">
+            {logs.join("\n")}
+          </pre>
+        )}
+        {err && (
+          <p className="mt-3 break-words text-xs text-red-700">{err}</p>
+        )}
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={withdrawing}
+            className="flex-1 rounded-full border px-4 py-2 text-sm font-medium opacity-80 transition hover:opacity-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={execute}
+            disabled={
+              withdrawing || !validRecipient || toWithdraw.length === 0
+            }
+            className="flex-[2] inline-flex items-center justify-center gap-1.5 rounded-full bg-[var(--lagoon-deep)] px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+          >
+            {withdrawing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Withdrawing…
+              </>
+            ) : toWithdraw.length === 0 ? (
+              "Nothing selected"
+            ) : (
+              <>
+                <ArrowUpRight className="h-4 w-4" />
+                Withdraw {toWithdraw.length}{" "}
+                {toWithdraw.length === 1 ? "asset" : "assets"}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

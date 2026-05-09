@@ -672,4 +672,212 @@ describe("iWallet", async () => {
       /InvalidInitialization/
     );
   });
+
+  // ── known-limitation pins ─────────────────────────────────────
+  // These tests document current behavior the docs *imply* but the
+  // implementation doesn't fully enforce. They pass today; if either is
+  // later fixed, the assertions here flip and force a conscious update.
+
+  it("[pin] token cap is bypassed when tokens are pulled via approved router", async () => {
+    // Setup: wallet holds tokens; master pre-approves a router for a large
+    // amount; a session has a tight per-token cap and `router` is allowed.
+    const { wallet } = await deployFactoryAndWallet();
+    const token = await deployToken(master.account.address);
+    await token.write.transfer([wallet.address, parseEther("10000")], {
+      account: master.account,
+    });
+
+    const router = await viem.deployContract("MockRouter");
+
+    // Master pre-approves the router for a finite (non-infinite) amount via
+    // executeAsOwner. Infinite (max-uint256) is rejected by _enforceApprove,
+    // but executeAsOwner skips policy entirely so any amount works here.
+    const bigApproval = parseEther("100000");
+    await wallet.write.executeAsOwner(
+      [
+        token.address,
+        0n,
+        encodeFunctionData({
+          abi: [
+            {
+              type: "function",
+              name: "approve",
+              inputs: [
+                { name: "spender", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+              outputs: [{ type: "bool" }],
+              stateMutability: "nonpayable",
+            },
+          ],
+          functionName: "approve",
+          args: [router.address, bigApproval],
+        }),
+      ],
+      { account: master.account }
+    );
+
+    // Session: tight 100-token daily cap, router and token both allowlisted.
+    await wallet.write.addSession(
+      [
+        sessionA.account.address,
+        blankPolicy({
+          allowedTokens: [token.address],
+          tokenDailyLimits: [parseEther("100")],
+          allowedContracts: [router.address],
+          allowedSpenders: [router.address],
+        }),
+      ],
+      { account: master.account }
+    );
+
+    // Session triggers a pull that drains 5000 — 50× the cap. The call
+    // hits MockRouter.pull(...), whose selector isn't a direct ERC-20
+    // selector, so iWallet falls into the generic-contract path and never
+    // consults the token cap. Tokens move regardless.
+    const pullAmount = parseEther("5000");
+    await wallet.write.execute(
+      [
+        router.address,
+        0n,
+        encodeFunctionData({
+          abi: [
+            {
+              type: "function",
+              name: "pull",
+              inputs: [
+                { name: "token", type: "address" },
+                { name: "from", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+              outputs: [],
+              stateMutability: "nonpayable",
+            },
+          ],
+          functionName: "pull",
+          args: [token.address, wallet.address, pullAmount],
+        }),
+      ],
+      { account: sessionA.account }
+    );
+
+    // The bypass succeeded — router holds the tokens, the cap was ignored.
+    const routerBal = await token.read.balanceOf([router.address]);
+    assert.equal(routerBal, pullAmount);
+
+    // Per-session token-spent counter wasn't incremented (calldata-aware
+    // gating only fires for direct ERC-20 selectors).
+    const sessionTokenSpent = await wallet.read.getSessionDailyTokenSpent([
+      sessionA.account.address,
+      token.address,
+    ]);
+    assert.equal(sessionTokenSpent, 0n);
+  });
+
+  it("revoke + re-add resets the session's day counter (post-fix)", async () => {
+    const { wallet } = await deployFactoryAndWallet();
+    const token = await deployToken(master.account.address);
+    await token.write.transfer([wallet.address, parseEther("1000")], {
+      account: master.account,
+    });
+
+    // First incarnation: spend ETH and token close to caps.
+    await wallet.write.addSession(
+      [
+        sessionA.account.address,
+        blankPolicy({
+          dailyETHLimit: parseEther("0.05"),
+          allowedTokens: [token.address],
+          tokenDailyLimits: [parseEther("100")],
+          allowedContracts: [recipient.account.address, token.address],
+        }),
+      ],
+      { account: master.account }
+    );
+
+    await wallet.write.execute(
+      [recipient.account.address, parseEther("0.04"), "0x"],
+      { account: sessionA.account }
+    );
+    await wallet.write.execute(
+      [
+        token.address,
+        0n,
+        encodeFunctionData({
+          abi: [
+            {
+              type: "function",
+              name: "transfer",
+              inputs: [
+                { name: "to", type: "address" },
+                { name: "amount", type: "uint256" },
+              ],
+              outputs: [{ type: "bool" }],
+              stateMutability: "nonpayable",
+            },
+          ],
+          functionName: "transfer",
+          args: [recipient.account.address, parseEther("80")],
+        }),
+      ],
+      { account: sessionA.account }
+    );
+
+    assert.equal(
+      await wallet.read.getSessionDailyEthSpent([sessionA.account.address]),
+      parseEther("0.04")
+    );
+    assert.equal(
+      await wallet.read.getSessionDailyTokenSpent([
+        sessionA.account.address,
+        token.address,
+      ]),
+      parseEther("80")
+    );
+
+    // Revoke and re-add the same session with the same cap.
+    await wallet.write.revokeSession([sessionA.account.address], {
+      account: master.account,
+    });
+    await wallet.write.addSession(
+      [
+        sessionA.account.address,
+        blankPolicy({
+          dailyETHLimit: parseEther("0.05"),
+          allowedTokens: [token.address],
+          tokenDailyLimits: [parseEther("100")],
+          allowedContracts: [recipient.account.address, token.address],
+        }),
+      ],
+      { account: master.account }
+    );
+
+    // Counters and cooldown are now cleared on re-add.
+    assert.equal(
+      await wallet.read.getSessionDailyEthSpent([sessionA.account.address]),
+      0n
+    );
+    assert.equal(
+      await wallet.read.getSessionDailyTokenSpent([
+        sessionA.account.address,
+        token.address,
+      ]),
+      0n
+    );
+    assert.equal(
+      await wallet.read.lastTxTimestamp([sessionA.account.address]),
+      0n
+    );
+
+    // The new session has the full 0.05 ETH cap available immediately —
+    // a 0.05 send goes through (would have reverted with the old behavior).
+    await wallet.write.execute(
+      [recipient.account.address, parseEther("0.05"), "0x"],
+      { account: sessionA.account }
+    );
+    assert.equal(
+      await wallet.read.getSessionDailyEthSpent([sessionA.account.address]),
+      parseEther("0.05")
+    );
+  });
 });

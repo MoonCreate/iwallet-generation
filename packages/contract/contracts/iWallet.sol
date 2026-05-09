@@ -89,6 +89,21 @@ contract iWallet is IiWallet, Initializable {
         Policy storage p = _policies[session];
         _writePolicy(p, policy);
         p.active = true;
+
+        // Reset per-session counters so a re-added session starts clean.
+        // Without this, sessionEthSpent / sessionTokenSpent / lastTxTimestamp
+        // from a prior incarnation of the same address would leak into the
+        // new policy (a previously-spent 0.04 / 0.05 cap would leave only
+        // 0.01 of the new policy's cap available today).
+        // updateSessionPolicy intentionally does NOT clear these — there,
+        // mid-day counter carryover is correct anti-bypass behavior.
+        uint256 day = _currentDay();
+        sessionEthSpent[day][session] = 0;
+        for (uint256 i = 0; i < policy.allowedTokens.length; i++) {
+            sessionTokenSpent[day][session][policy.allowedTokens[i]] = 0;
+        }
+        lastTxTimestamp[session] = 0;
+
         emit SessionAdded(session);
     }
 

@@ -4,6 +4,7 @@ import {
   useChainId,
   usePublicClient,
   useReadContract,
+  useSignMessage,
   useWriteContract,
 } from "wagmi";
 import {
@@ -40,6 +41,8 @@ import {
   Pencil,
   Power,
   RefreshCw,
+  RotateCw,
+  ShieldAlert,
   Wallet,
   X,
 } from "lucide-react";
@@ -270,6 +273,7 @@ function SessionRow({
   const [form, setForm] = useState<PolicyForm | null>(null);
   const [busy, setBusy] = useState<"idle" | "saving" | "revoking">("idle");
   const [err, setErr] = useState<string | null>(null);
+  const [reissueOpen, setReissueOpen] = useState(false);
 
   const explorer = explorerForChain(chainId);
   const supportedTokens = useMemo(() => getSupportedTokens(chainId), [chainId]);
@@ -541,7 +545,7 @@ function SessionRow({
       : "active";
 
   return (
-    <li className="rounded-xl border bg-white/30 p-4 transition hover:border-[var(--lagoon-deep)]/50">
+    <li className="rounded-xl border border-[var(--line)] bg-[color-mix(in_oklab,var(--surface)_55%,transparent)] p-4 transition hover:border-[var(--lagoon-deep)]/60">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -571,7 +575,18 @@ function SessionRow({
               ` · revoked ${new Date(session.revokedAt).toLocaleString()}`}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs">
+          {!isRevoked && (
+            <button
+              type="button"
+              onClick={() => setReissueOpen(true)}
+              className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 opacity-80 transition hover:opacity-100"
+              title="Get a fresh bearer to plug into a new MCP client"
+            >
+              <RotateCw className="h-3 w-3" />
+              Reissue bearer
+            </button>
+          )}
           {!isRevoked && (
             <button
               type="button"
@@ -735,7 +750,245 @@ function SessionRow({
           )}
         </div>
       )}
+      {reissueOpen && iWalletAddress && (
+        <ReissueBearerDialog
+          iWalletAddress={iWalletAddress}
+          chainId={chainId}
+          label={session.label ?? "Agent session"}
+          onClose={() => {
+            setReissueOpen(false);
+            onChanged();
+          }}
+        />
+      )}
     </li>
+  );
+}
+
+// ── Reissue bearer dialog ─────────────────────────────────────────────
+// "Peeking" the original bearer is impossible — store/sessions.ts hashes
+// bearers at rest. So instead we reissue: the master signs the standard
+// provisioning message, the backend re-derives the same session privkey
+// (deterministic from sig + index 0), generates a fresh bearer, and
+// auto-revokes the previous one. The on-chain session is unchanged.
+
+const PROVISIONING_MESSAGE = "iWallet session bootstrap";
+
+function ReissueBearerDialog({
+  iWalletAddress,
+  chainId,
+  label,
+  onClose,
+}: {
+  iWalletAddress: `0x${string}`;
+  chainId: number;
+  label: string;
+  onClose: () => void;
+}) {
+  const { signMessageAsync } = useSignMessage();
+  const [step, setStep] = useState<"idle" | "signing" | "fetching" | "done" | "error">(
+    "idle"
+  );
+  const [bearer, setBearer] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [bearerCopied, setBearerCopied] = useState(false);
+  const [cmdCopied, setCmdCopied] = useState(false);
+
+  const backendUrl = getBackendUrl();
+  const mcpUrl = `${backendUrl}/mcp`;
+
+  async function reissue() {
+    setErr(null);
+    try {
+      setStep("signing");
+      const signature = await signMessageAsync({
+        message: PROVISIONING_MESSAGE,
+      });
+      setStep("fetching");
+      const r = await fetch(`${backendUrl}/api/wallet/provision`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          signature,
+          index: 0,
+          iWalletAddress,
+          chainId,
+          label,
+        }),
+      });
+      if (!r.ok) throw new Error(`Provision failed: ${r.status}`);
+      const j = (await r.json()) as { bearerToken: string };
+      setBearer(j.bearerToken);
+      setStep("done");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setStep("error");
+    }
+  }
+
+  const mcpCommand = bearer
+    ? `claude mcp add iwallet --transport http ${mcpUrl} --header "Authorization: Bearer ${bearer}"`
+    : "";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={step === "fetching" || step === "signing" ? undefined : onClose}
+    >
+      <div
+        className="island-shell w-full max-w-lg rounded-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <RotateCw className="h-5 w-5 text-[var(--lagoon-deep)]" />
+              <h3 className="text-lg font-semibold">Reissue bearer</h3>
+            </div>
+            <p className="text-xs opacity-70">
+              The on-chain session stays the same. The previous bearer is
+              auto-revoked when the new one is issued.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={step === "signing" || step === "fetching"}
+            className="rounded-full p-1 opacity-70 transition hover:bg-white/10 hover:opacity-100 disabled:opacity-30"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {step === "idle" && (
+          <>
+            <p className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+              <ShieldAlert className="mr-1 inline h-3 w-3" />
+              Reissuing rotates the bearer — any MCP client still using the
+              old one will start failing immediately.
+            </p>
+            <button
+              type="button"
+              onClick={reissue}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--lagoon-deep)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+              style={{ color: "white" }}
+            >
+              <RotateCw className="h-4 w-4" />
+              Sign & reissue
+            </button>
+          </>
+        )}
+
+        {(step === "signing" || step === "fetching") && (
+          <div className="flex items-center gap-2 rounded border p-3 text-sm opacity-80">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {step === "signing"
+              ? "Sign the message in your wallet…"
+              : "Provisioning new bearer…"}
+          </div>
+        )}
+
+        {step === "done" && bearer && (
+          <div className="space-y-3">
+            <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-200">
+              <Check className="mr-1 inline h-3 w-3" />
+              New bearer issued. The previous one is now revoked.
+            </div>
+            <label className="block">
+              <span className="text-xs font-medium opacity-80">
+                Bearer token
+              </span>
+              <div className="mt-1 flex items-stretch gap-2">
+                <code className="flex-1 truncate rounded border bg-black/10 px-2 py-1.5 font-mono text-xs">
+                  {bearer}
+                </code>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(bearer);
+                    setBearerCopied(true);
+                    setTimeout(() => setBearerCopied(false), 1500);
+                  }}
+                  className="inline-flex items-center gap-1 rounded border px-3 py-1.5 text-xs"
+                >
+                  {bearerCopied ? (
+                    <>
+                      <Check className="h-3 w-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium opacity-80">
+                Add to Claude Code (one-line)
+              </span>
+              <div className="mt-1 flex items-stretch gap-2">
+                <code className="flex-1 overflow-x-auto rounded border bg-black/10 px-2 py-1.5 font-mono text-xs whitespace-pre">
+                  {mcpCommand}
+                </code>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(mcpCommand);
+                    setCmdCopied(true);
+                    setTimeout(() => setCmdCopied(false), 1500);
+                  }}
+                  className="inline-flex items-center gap-1 rounded border px-3 py-1.5 text-xs"
+                >
+                  {cmdCopied ? (
+                    <>
+                      <Check className="h-3 w-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="mt-1 text-xs opacity-60">
+                MCP server URL: <code>{mcpUrl}</code>
+              </p>
+            </label>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-2 w-full rounded-full border px-4 py-2 text-sm opacity-80 hover:opacity-100"
+            >
+              Done
+            </button>
+          </div>
+        )}
+
+        {step === "error" && (
+          <>
+            <p className="rounded border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300 break-words">
+              {err ?? "Unknown error"}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setErr(null);
+                setStep("idle");
+              }}
+              className="mt-3 w-full rounded-full border px-4 py-2 text-sm"
+            >
+              Try again
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1389,8 +1642,10 @@ function BalanceCard({
 
   const Inner = (
     <div
-      className={`rounded-xl border p-4 transition hover:border-[var(--lagoon-deep)]/60 ${
-        isNative ? "bg-[var(--lagoon-deep)]/5" : "bg-white/40"
+      className={`rounded-xl border border-[var(--line)] p-4 transition hover:border-[var(--lagoon-deep)]/60 ${
+        isNative
+          ? "bg-[color-mix(in_oklab,var(--lagoon-deep)_8%,transparent)]"
+          : "bg-[color-mix(in_oklab,var(--surface)_55%,transparent)]"
       }`}
     >
       <div className="flex items-center gap-3">

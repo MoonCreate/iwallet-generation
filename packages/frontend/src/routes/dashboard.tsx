@@ -134,18 +134,21 @@ function DashboardPage() {
 
   if (!isConnected) {
     return (
-      <main className="page-wrap mx-auto max-w-3xl px-4 py-12">
+      <div className="bg-[#02130f] min-h-screen">
+        <main className="page-wrap mx-auto max-w-3xl px-4 py-12">
         <h1 className="display-title text-3xl font-bold">Dashboard</h1>
         <p className="mt-3">Connect your wallet to view your iWallet.</p>
         <div className="mt-4">
           <appkit-button />
         </div>
       </main>
+      </div>
     );
   }
 
   return (
-    <main className="page-wrap mx-auto max-w-4xl px-4 py-12 space-y-6">
+    <div className="bg-[#02130f] min-h-screen">
+      <main className="page-wrap mx-auto max-w-4xl px-4 py-12 space-y-6">
       <h1 className="display-title text-3xl font-bold">Dashboard</h1>
 
       {hasCode === true && iWalletAddr && address ? (
@@ -238,6 +241,7 @@ function DashboardPage() {
         )}
       </section>
     </main>
+    </div>
   );
 }
 

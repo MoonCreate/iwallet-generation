@@ -1,27 +1,27 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { Menu } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Header() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--header-bg)] px-4 backdrop-blur-lg">
-      <nav className="page-wrap flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:py-4">
+    <header className="sticky top-0 z-50 border-b border-emerald-500/20 bg-[#02130f]/90 px-4 backdrop-blur-lg">
+      <nav className="page-wrap flex items-center justify-between py-3 sm:py-4">
+        {/* Logo - Left */}
         <h2 className="m-0 flex-shrink-0 text-base font-semibold tracking-tight">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm text-[var(--sea-ink)] no-underline shadow-[0_8px_24px_rgba(30,90,72,0.08)] sm:px-4 sm:py-2"
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm text-emerald-100 no-underline hover:bg-emerald-500/20 transition-colors sm:px-4 sm:py-2"
           >
-            <span className="h-2 w-2 rounded-full bg-[linear-gradient(90deg,#56c6be,#7ed3bf)]" />
+            <span className="h-2 w-2 rounded-full bg-[linear-gradient(90deg,#10b981,#059669)]" />
             iWallet
           </Link>
         </h2>
 
-        <div className="ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
-          <appkit-network-button />
-          <appkit-button />
-          <ThemeToggle />
-        </div>
-
-        <div className="order-3 flex w-full flex-wrap items-center gap-x-4 gap-y-1 pb-1 text-sm font-semibold sm:order-2 sm:w-auto sm:flex-nowrap sm:pb-0">
+        {/* Navigation - Center (Desktop) */}
+        <div className="hidden md:flex items-center gap-x-6">
           <Link
             to="/"
             className="nav-link"
@@ -43,16 +43,67 @@ export default function Header() {
           >
             Dashboard
           </Link>
-          <Link
-            to="/robot"
-            className="nav-link"
-            activeProps={{ className: "nav-link is-active" }}
-          >
-            Robot
-          </Link>
         </div>
 
+        {/* Mobile Menu Button - Left side on mobile */}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          className="md:hidden flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm text-emerald-100 transition hover:bg-emerald-500/20"
+          aria-label="Toggle menu"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+
+        {/* Wallet Buttons - Right */}
+        <div className="flex items-center gap-2">
+          <appkit-network-button />
+          <appkit-button />
+          <ThemeToggle />
+        </div>
       </nav>
+
+      {/* Mobile Navigation Dropdown */}
+      {mobileMenuOpen && (
+        <div className="md:hidden absolute left-0 right-0 top-full z-40 border-b border-emerald-500/20 bg-[#02130f]/95 px-4 py-4 backdrop-blur-lg">
+          <nav className="page-wrap flex flex-col gap-4">
+            <Link
+              to="/"
+              className="nav-link"
+              activeProps={{ className: "nav-link is-active" }}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Home
+            </Link>
+            <Link
+              to="/connect"
+              className="nav-link"
+              activeProps={{ className: "nav-link is-active" }}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Connect
+            </Link>
+            <Link
+              to="/dashboard"
+              className="nav-link"
+              activeProps={{ className: "nav-link is-active" }}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Dashboard
+            </Link>
+          </nav>
+        </div>
+      )}
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
+          aria-label="Close menu"
+        />
+      )}
     </header>
   );
 }

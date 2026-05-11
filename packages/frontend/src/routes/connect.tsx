@@ -551,7 +551,8 @@ function ConnectPage() {
   // ── Render ────────────────────────────────────────────────────
 
   return (
-    <main className="page-wrap mx-auto max-w-3xl px-4 py-12">
+    <div className="bg-[#02130f] min-h-screen">
+      <main className="page-wrap mx-auto max-w-3xl px-4 py-12">
       <h1 className="display-title mb-2 text-3xl font-bold">
         Connect an AI agent to your iWallet
       </h1>
@@ -853,6 +854,7 @@ function ConnectPage() {
         </div>
       )}
     </main>
+    </div>
   );
 }
 

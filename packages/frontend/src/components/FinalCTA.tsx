@@ -1,3 +1,5 @@
+import { Link } from '@tanstack/react-router'
+
 export function FinalCTA() {
   return (
     <section id="get-started" className="py-24 md:py-32 px-6 relative">
@@ -19,12 +21,12 @@ export function FinalCTA() {
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a
-            href="#"
-            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
+          <Link
+            to="/create"
+            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 !text-white font-semibold rounded-lg transition-colors"
           >
             Deploy Your Agent Wallet
-          </a>
+          </Link>
         </div>
       </div>
     </section>

@@ -290,7 +290,7 @@ a {
 .nav-link {
   position: relative;
   text-decoration: none;
-  color: var(--sea-ink-soft);
+  color: rgb(74 222 128);
 }
 
 .nav-link::after {
@@ -302,13 +302,13 @@ a {
   height: 2px;
   transform: scaleX(0);
   transform-origin: left;
-  background: linear-gradient(90deg, var(--lagoon), #7ed3bf);
+  background: linear-gradient(90deg, #10b981, #059669);
   transition: transform 170ms ease;
 }
 
 .nav-link:hover,
 .nav-link.is-active {
-  color: var(--sea-ink);
+  color: rgb(209 250 229);
 }
 
 .nav-link:hover::after,

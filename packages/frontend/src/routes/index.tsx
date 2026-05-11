@@ -1,116 +1,95 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Shield,
-  Brain,
-  Key,
-  Zap,
-} from "lucide-react";
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
+import { HowItWorks } from '#/components/HowItWorks'
+import { FeaturesGrid } from '#/components/FeaturesGrid'
+import { FinalCTA } from '#/components/FinalCTA'
 
-export const Route = createFileRoute("/")({ component: Landing });
+export const Route = createFileRoute('/')({
+  component: LandingPage,
+})
 
-function Landing() {
+function LandingPage() {
+  const [RobotSceneComponent, setRobotSceneComponent] = useState<any>(null)
+
+  useEffect(() => {
+    let mounted = true
+    import('#/components/RobotScene').then(m => {
+      if (mounted) {
+        setRobotSceneComponent(() => m.RobotScene)
+      }
+    }).catch(err => {
+      console.error("Failed to load RobotScene", err)
+    })
+    return () => { mounted = false }
+  }, [])
+
+  if (!RobotSceneComponent) {
+    return (
+      <div className="w-full h-screen bg-[#02130f] flex items-center justify-center">
+        <div className="text-emerald-500 font-mono text-sm tracking-widest animate-pulse">
+          INITIALIZING SENTINEL UNIT...
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <main className="page-wrap px-4 pb-8 pt-14">
-      {/* Hero */}
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
+    <div className="w-full min-h-screen bg-[#02130f]">
+      {/* Hero Section */}
+      <section className="h-screen flex flex-col items-center justify-center text-center px-6 relative overflow-hidden">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#02130f] via-[#0a1f15] to-[#02130f] opacity-50" />
 
-        <p className="island-kicker mb-3">AI-Native Smart Wallet</p>
-        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-          AI wallets need guardrails.
-        </h1>
-        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          Every AI agent needs a wallet. But giving an AI agent a wallet without
-          limits is like giving a toddler a credit card.{" "}
-          <strong>iWallet</strong> creates deterministic sub-wallets with
-          on-chain policy rules — so your AI can act, but only within boundaries
-          you set.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            to="/create"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
-          >
-            Create iWallet
-          </Link>
-          <Link
-            to="/robot"
-            className="rounded-full border border-[#10b981]/30 bg-[#10b981]/10 px-5 py-2.5 text-sm font-semibold text-[#10b981] no-underline transition hover:-translate-y-0.5 hover:bg-[#10b981]/20"
-          >
-            Sentinel Robot Demo
-          </Link>
-          <Link
-            to="/agent"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
-          >
-            Try Live Agent Demo
-          </Link>
+        {/* Hero content */}
+        <div className="relative z-10 max-w-3xl">
+          <p className="text-emerald-500/60 font-mono text-xs tracking-[0.5em] mb-6 uppercase">iWallet Protocol</p>
+
+          <h1 className="text-6xl md:text-7xl font-black text-emerald-100 mb-6 leading-tight tracking-tight">
+            AI Agents With<br />
+            <span className="text-[#10b981]">Policy-Protected</span><br />
+            Wallets
+          </h1>
+
+          <p className="text-emerald-300/70 text-lg md:text-xl leading-relaxed mb-10 max-w-xl mx-auto">
+            Give your AI agents a wallet that enforces rules — daily limits, allowed contracts, cooldowns. Even when compromised, your funds stay protected.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              to="/create"
+              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 !text-white font-semibold rounded-lg transition-colors"
+            >
+              Get Started
+            </Link>
+            <a
+              href="#features"
+              className="px-8 py-4 border border-emerald-500/40 hover:border-emerald-500 text-emerald-100 font-semibold rounded-lg transition-colors"
+            >
+              Learn More
+            </a>
+          </div>
         </div>
 
+        {/* Scroll indicator */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-emerald-500/50">
+          <span className="text-xs font-mono tracking-widest uppercase">Scroll to explore</span>
+          <div className="w-[1px] h-8 bg-gradient-to-b from-emerald-500/50 to-transparent" />
+        </div>
       </section>
 
-      {/* Features */}
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {(
-          [
-            [
-              Key,
-              "Derived Keys",
-              "No new seed phrases. iWallets are deterministically derived from your master wallet signature. Recoverable anytime.",
-            ],
-            [
-              Shield,
-              "On-Chain Policy",
-              "Daily spend limits, contract whitelists, cooldowns — all enforced by smart contracts, not just software.",
-            ],
-            [
-              Brain,
-              "AI Agent Ready",
-              "Give your AI agent a wallet it can use. Policy rules ensure it cannot exceed the boundaries you set.",
-            ],
-            [
-              Zap,
-              "Live Demo",
-              "Try the AI agent right now. Watch it execute transactions — and get blocked when it hits a policy limit.",
-            ],
-          ] as const
-        ).map(([Icon, title, desc], index) => (
-          <article
-            key={title}
-            className="island-shell feature-card rise-in rounded-2xl p-5"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
-          >
-            <Icon className="mb-3 h-6 w-6 text-[var(--lagoon)]" />
-            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
-              {title}
-            </h2>
-            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
-          </article>
-        ))}
-      </section>
+      {/* Robot Scene - scrolls away naturally like Hero */}
+      <div className="relative" style={{ height: '300vh' }}>
+        <RobotSceneComponent />
+      </div>
 
-      {/* How it works */}
-      <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">How It Works</p>
-        <ol className="m-0 list-decimal space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
-          <li>
-            <strong>Connect</strong> your master wallet (MetaMask, WalletConnect, etc.)
-          </li>
-          <li>
-            <strong>Create</strong> an iWallet — signs a deterministic message to derive a sub-wallet
-          </li>
-          <li>
-            <strong>Configure</strong> policy rules — daily limits, allowed contracts, cooldowns
-          </li>
-          <li>
-            <strong>Activate</strong> — deploys a PolicyProxy that enforces your rules on-chain
-          </li>
-          <li>
-            <strong>Fund</strong> the iWallet and let your AI agent operate within bounds
-          </li>
-        </ol>
-      </section>
-    </main>
-  );
+      {/* How It Works Section */}
+      <HowItWorks />
+
+      {/* Features Grid Section */}
+      <FeaturesGrid />
+
+      {/* Final CTA Section */}
+      <FinalCTA />
+    </div>
+  )
 }

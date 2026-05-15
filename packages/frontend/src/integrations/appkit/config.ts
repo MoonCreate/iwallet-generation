@@ -37,6 +37,17 @@ createAppKit({
   defaultNetwork: zeroGTestnet,
   projectId,
   metadata,
+  themeMode: "dark",
+  themeVariables: {
+    "--apkt-accent": "#10b981",
+    "--apkt-color-mix": "#02130f",
+    "--apkt-color-mix-strength": 40,
+    "--apkt-border-radius-master": "2px",
+    "--w3m-accent": "#10b981",
+    "--w3m-color-mix": "#02130f",
+    "--w3m-color-mix-strength": 40,
+    "--w3m-border-radius-master": "2px",
+  } as any,
   features: {
     analytics: false,
   },

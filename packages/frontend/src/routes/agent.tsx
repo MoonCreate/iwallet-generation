@@ -6,6 +6,7 @@ import { getBackendUrl, getFactoryAddress, IWALLET_FACTORY_ABI } from "#/lib/con
 import { Bot, Fuel, History, Loader2, MessageSquarePlus, Send, Zap } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { WalletButton } from "#/components/WalletButton";
 
 export const Route = createFileRoute("/agent")({
   component: AgentPage,
@@ -92,8 +93,25 @@ function AgentPage() {
       .then((r) => r.json())
       .then((j) => setSessions((j.sessions ?? []).filter((s: SessionItem) => !s.revokedAt)))
       .catch(() => {});
-    setChatHistory(loadChats(iWalletAddr));
+    const chats = loadChats(iWalletAddr);
+    setChatHistory(chats);
+    // Check if there's a pending "continue" chat (just added from dashboard)
+    const pendingKey = `iwallet-continue-${iWalletAddr.toLowerCase()}`;
+    const pending = localStorage.getItem(pendingKey);
+    if (pending) {
+      localStorage.removeItem(pendingKey);
+      const entry = JSON.parse(pending) as ChatEntry;
+      setMessages(entry.messages as Message[]);
+      setChatId(entry.id);
+    }
   }, [iWalletAddr]);
+
+  // Auto-start session if we have messages but no session (continued from dashboard)
+  useEffect(() => {
+    if (messages.length > 0 && !sessionId && !starting && sessions.length > 0) {
+      startChat();
+    }
+  }, [messages, sessionId, sessions]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
@@ -238,13 +256,13 @@ function AgentPage() {
       <main className="page-wrap mx-auto max-w-2xl px-4 py-12">
         <h1 className="display-title text-3xl font-bold mb-3">Agent Chat</h1>
         <p className="opacity-70">Connect your wallet to start chatting with your iWallet agent.</p>
-        <div className="mt-4"><appkit-button /></div>
+        <div className="mt-4"><WalletButton /></div>
       </main>
     );
   }
 
   // ── No session yet ────────────────────────────────────────────
-  if (!sessionId) {
+  if (!sessionId && messages.length === 0) {
     return (
       <main className="page-wrap mx-auto max-w-2xl px-4 py-12">
         <h1 className="display-title text-3xl font-bold mb-3">Agent Chat</h1>

@@ -2,9 +2,10 @@ import {
   HeadContent,
   Scripts,
   createRootRouteWithContext,
+  useRouterState,
 } from "@tanstack/react-router";
 import Footer from "../components/Footer";
-import Header from "../components/Header";
+import { Sidebar } from "../components/Sidebar";
 
 import appCss from "../styles.css?url";
 
@@ -66,11 +67,32 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
-        <Header />
-        <AppKitProvider>{children}</AppKitProvider>
-        <Footer />
+        <AppKitProvider>
+          <LayoutShell>{children}</LayoutShell>
+        </AppKitProvider>
         <Scripts />
       </body>
     </html>
+  );
+}
+
+function LayoutShell({ children }: { children: React.ReactNode }) {
+  const { location } = useRouterState();
+  const isLanding = location.pathname === "/" || location.pathname === "/robot";
+
+  if (isLanding) {
+    return (
+      <>
+        {children}
+        <Footer />
+      </>
+    );
+  }
+
+  return (
+    <div className="dark flex min-h-screen bg-[#02130f] text-emerald-100">
+      <Sidebar />
+      <main className="ml-48 flex-1">{children}</main>
+    </div>
   );
 }

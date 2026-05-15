@@ -28,6 +28,7 @@ import {
   isNativeToken,
   type SupportedToken,
 } from "@iwallet/tokens";
+import { WalletButton } from "#/components/WalletButton";
 import {
   Activity,
   ArrowUpRight,
@@ -138,7 +139,7 @@ function DashboardPage() {
         <h1 className="display-title text-3xl font-bold">Dashboard</h1>
         <p className="mt-3">Connect your wallet to view your iWallet.</p>
         <div className="mt-4">
-          <appkit-button />
+          <WalletButton />
         </div>
       </main>
     );
@@ -1814,6 +1815,9 @@ function ZgHistorySection({ iWalletAddress }: { iWalletAddress: string }) {
   const [entries, setEntries] = useState<ZgEntry[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [messagesCache, setMessagesCache] = useState<Record<number, Array<{role: string; content: string}>>>({});
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     fetch(`${getBackendUrl()}/api/agent/history/${iWalletAddress}`)
@@ -1825,6 +1829,46 @@ function ZgHistorySection({ iWalletAddress }: { iWalletAddress: string }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [iWalletAddress]);
+
+  async function toggleDetail(entry: ZgEntry) {
+    if (expandedId === entry.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(entry.id);
+    if (messagesCache[entry.id]) return; // already cached
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/agent/history/${iWalletAddress}/${entry.root_hash}`);
+      const data = await res.json();
+      if (data.messages) {
+        setMessagesCache((prev) => ({ ...prev, [entry.id]: data.messages }));
+      }
+    } catch {}
+    setDetailLoading(false);
+  }
+
+  function continueInAgent(messages: Array<{role: string; content: string}>) {
+    const chatId = crypto.randomUUID();
+    const key = `iwallet-chats-${iWalletAddress.toLowerCase()}`;
+    const chats = JSON.parse(localStorage.getItem(key) || "[]");
+    const firstUser = messages.find((m) => m.role === "user");
+    const entry = {
+      id: chatId,
+      title: firstUser?.content.slice(0, 60) || "Continued chat",
+      messages,
+      createdAt: Date.now(),
+    };
+    chats.unshift(entry);
+    localStorage.setItem(key, JSON.stringify(chats.slice(0, 50)));
+    // Set pending flag for agent page to pick up
+    localStorage.setItem(`iwallet-continue-${iWalletAddress.toLowerCase()}`, JSON.stringify(entry));
+    window.location.href = "/agent";
+  }
+
+  function stripThinking(text: string): string {
+    return text.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+  }
 
   return (
     <section className="island-shell rounded-2xl p-6">
@@ -1855,28 +1899,55 @@ function ZgHistorySection({ iWalletAddress }: { iWalletAddress: string }) {
       ) : (
         <ul className="space-y-2">
           {entries.map((e) => (
-            <li
-              key={e.id}
-              className="flex items-start gap-3 rounded-lg border p-3 text-sm"
-            >
-              <Clock className="mt-0.5 h-4 w-4 shrink-0 opacity-50" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">
-                    {e.message_count} messages
-                  </span>
-                  <span className="opacity-50">·</span>
-                  <span className="opacity-60">
-                    {new Date(e.created_at).toLocaleString()}
-                  </span>
+            <li key={e.id} className="rounded-lg border overflow-hidden">
+              <button
+                onClick={() => toggleDetail(e)}
+                className="w-full flex items-start gap-3 p-3 text-sm text-left cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition group"
+              >
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 opacity-50" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{e.message_count} messages</span>
+                    <span className="opacity-50">·</span>
+                    <span className="opacity-60">{new Date(e.created_at).toLocaleString()}</span>
+                    <span className="ml-auto text-[10px] opacity-0 group-hover:opacity-60 transition text-emerald-500">
+                      {expandedId === e.id ? "Click to collapse" : "Click to view"}
+                    </span>
+                  </div>
+                  {e.summary && <p className="mt-0.5 truncate opacity-70">{e.summary}</p>}
+                  <code className="mt-1 block truncate font-mono text-[10px] opacity-40">{e.root_hash}</code>
                 </div>
-                {e.summary && (
-                  <p className="mt-0.5 truncate opacity-70">{e.summary}</p>
-                )}
-                <code className="mt-1 block truncate font-mono text-[10px] opacity-40">
-                  {e.root_hash}
-                </code>
-              </div>
+                <ExternalLink className="h-4 w-4 shrink-0 opacity-30 group-hover:opacity-70 transition" />
+              </button>
+
+              {expandedId === e.id && (
+                <div className="border-t p-3 space-y-3">
+                  {detailLoading && !messagesCache[e.id] ? (
+                    <div className="flex items-center gap-2 text-xs opacity-60">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Downloading from 0G Storage…
+                    </div>
+                  ) : messagesCache[e.id] ? (
+                    <>
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {messagesCache[e.id].map((m, i) => (
+                          <div key={i} className={`rounded-lg px-3 py-2 text-xs ${m.role === "user" ? "bg-emerald-500/10 ml-8" : "bg-black/5 dark:bg-white/5 mr-8"}`}>
+                            <span className="font-medium text-[10px] uppercase opacity-50">{m.role}</span>
+                            <p className="mt-0.5 whitespace-pre-wrap">{stripThinking(m.content).slice(0, 500)}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => continueInAgent(messagesCache[e.id])}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition cursor-pointer"
+                      >
+                        <ArrowUpRight className="h-3 w-3" /> Continue in Agent
+                      </button>
+                    </>
+                  ) : (
+                    <p className="text-xs opacity-60">Failed to load messages from 0G Storage.</p>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>

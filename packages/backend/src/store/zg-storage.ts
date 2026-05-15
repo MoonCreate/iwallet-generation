@@ -106,17 +106,19 @@ export async function downloadConversation(
   if (!clients) return null;
 
   try {
-    const tmpPath = `/tmp/zg_${rootHash.slice(0, 16)}.json`;
-    const err = await (clients.indexer as any).download(rootHash, tmpPath, true);
+    const tmpPath = `/tmp/zg_${rootHash.slice(2, 18)}_${Date.now()}.json`;
+    const err = await (clients.indexer as any).download(rootHash, tmpPath, false);
     if (err) {
       console.error("[0G] download error:", err);
       return null;
     }
     const raw = await Bun.file(tmpPath).text();
+    // Cleanup
+    try { await Bun.file(tmpPath).unlink?.() } catch {}
     const parsed = JSON.parse(raw);
     return parsed.messages as ChatMessage[];
   } catch (e) {
-    console.error("[0G] download parse error:", e);
+    console.error("[0G] download error:", e);
     return null;
   }
 }

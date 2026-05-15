@@ -1,10 +1,39 @@
 import * as THREE from 'three'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera, Center, AdaptiveDpr, Float } from '@react-three/drei'
 import { Suspense, useState, useEffect, useRef } from 'react'
 import { RobotBody } from './RobotBody'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
-// Light controller - React State decoupled
+
+// ── Device capability detection ─────────────────────────────────
+function isLowEndDevice(): boolean {
+  if (typeof window === 'undefined') return false
+  const cores = navigator.hardwareConcurrency || 4
+  const memory = (navigator as any).deviceMemory || 8
+  const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent)
+  return cores < 4 || memory < 4 || (isMobile && cores < 6)
+}
+
+// ── Pause rendering when not visible ────────────────────────────
+function RenderController({ visible }: { visible: boolean }) {
+  const { invalidate, clock } = useThree()
+  const wasVisible = useRef(visible)
+
+  useEffect(() => {
+    if (visible && !wasVisible.current) {
+      clock.start()
+      invalidate()
+    }
+    if (!visible) {
+      clock.stop()
+    }
+    wasVisible.current = visible
+  }, [visible, invalidate, clock])
+
+  return null
+}
+
+// ── Light controller ────────────────────────────────────────────
 function LightController() {
   const ambientRef = useRef<THREE.AmbientLight>(null)
   const spotRef = useRef<THREE.SpotLight>(null)
@@ -33,54 +62,45 @@ function LightController() {
 }
 
 function FloatingRobotBody({ animation }: { animation: string }) {
-  const floatRef = useRef<THREE.Group>(null)
-
-  // Floating speed intensity managed organically without triggering React Re-renders
-  useFrame(() => {
-
-    // Fallback: simply use the Float component but its props aren't highly reactive without re-renders. 
-    // We update scale slightly for breathing effect or let Float do its thing.
-  })
-
   return (
-    <Center ref={floatRef}>
+    <Center>
       <RobotBody animation={animation as any} scale={1} position={[0, 0, 0]} />
     </Center>
   )
 }
 
-function PostProcessingController() {
-  const [intensity, setIntensity] = useState(4)
-  const [radius, setRadius] = useState(0.2)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const totalScrollable = document.documentElement.scrollHeight - window.innerHeight
-      const progress = totalScrollable > 0 ? Math.max(0, Math.min(1, window.scrollY / totalScrollable)) : 0
-      const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
-
-      setIntensity(4 - robotIntensity * 2.5)
-      setRadius(0.2 + robotIntensity * 0.2)
-    }
-
-    handleScroll()
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
+// ── Simplified post-processing (lighter bloom) ──────────────────
+function LightBloom() {
   return (
-    <EffectComposer enableNormalPass={false}>
+    <EffectComposer enableNormalPass={false} multisampling={0}>
       <Bloom
-        luminanceThreshold={1}
+        luminanceThreshold={1.2}
         mipmapBlur
-        intensity={intensity}
-        radius={radius}
+        intensity={2}
+        radius={0.3}
+        levels={3}
       />
     </EffectComposer>
   )
 }
 
+// ── Static fallback for low-end devices ─────────────────────────
+function StaticFallback() {
+  return (
+    <div className="sticky top-0 h-screen z-10 flex items-center justify-center">
+      <div className="relative">
+        <div className="w-48 h-48 md:w-72 md:h-72 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center animate-pulse">
+          <div className="w-32 h-32 md:w-48 md:h-48 rounded-full bg-emerald-500/5 border border-emerald-500/30 flex items-center justify-center">
+            <div className="text-emerald-400 font-mono text-xs md:text-sm tracking-widest">iWALLET</div>
+          </div>
+        </div>
+        <div className="absolute inset-0 rounded-full bg-emerald-500/5 animate-ping" style={{ animationDuration: '3s' }} />
+      </div>
+    </div>
+  )
+}
 
+// ── Main export ─────────────────────────────────────────────────
 export function RobotScene() {
   const containerRef = useRef<HTMLDivElement>(null)
   const text1Ref = useRef<HTMLDivElement>(null)
@@ -88,98 +108,81 @@ export function RobotScene() {
   const text3Ref = useRef<HTMLDivElement>(null)
   const textsContainerRef = useRef<HTMLDivElement>(null)
 
-  // Only state left: The animation string! Triggers a minimal re-render only when thresholds are crossed.
   const [animationString, setAnimationString] = useState('SK_Huggy_RobotNew.ao|A_Huggy_Idle')
+  const [isVisible, setIsVisible] = useState(false)
+  const [lowEnd] = useState(() => isLowEndDevice())
 
-  // Highly optimized unified scroll listener outside of React Virtual DOM
+  // IntersectionObserver for visibility-based rendering
+  useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0.05 }
+    )
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  // Scroll handler
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY
-      const viewportTop = scrollY
       const viewportBottom = scrollY + window.innerHeight
 
-      // Container position tracking - solid check for when container leaves viewport
       const containerTop = containerRef.current ? containerRef.current.getBoundingClientRect().top + scrollY : 0
       const containerHeight = containerRef.current?.offsetHeight || 0
       const containerBottom = containerTop + containerHeight
 
-      // Check if container is still in viewport
-      // Container is in view if: viewport bottom > container top AND viewport top < container bottom
-      const containerInView = viewportBottom > containerTop && viewportTop < containerBottom
+      const containerInView = viewportBottom > containerTop && scrollY < containerBottom
 
-      // Calculate progress relative to container (0 = container top enters viewport, 1 = container bottom)
       let containerProgress = 0
       if (containerInView) {
         const scrollIntoContainer = scrollY - containerTop
         containerProgress = Math.max(0, Math.min(1, scrollIntoContainer / (containerHeight - window.innerHeight)))
       }
 
-      // Use containerProgress for text animations (0 = container just enters, 1 = container fully passed)
-      // Also check if container is out of view to hide texts immediately
       const progress = containerInView ? containerProgress : (scrollY > containerBottom ? 1 : 0)
 
-      // Calculate the specific animation boundary so React doesn't re-render redundantly
       const newAnim = progress < 0.33 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Idle'
         : progress < 0.66 ? 'SK_Huggy_RobotNew.ao|A_Huggy_Dance_Bedrock'
           : 'SK_Huggy_RobotNew.ao|A_Huggy_Attack'
 
       setAnimationString(prev => prev !== newAnim ? newAnim : prev)
 
-      // Hardware-accelerated DOM background manipulation to guarantee perfect CSS match with Hero Section
+      // Background color
       const robotIntensity = Math.max(0, Math.min(1, (progress - 0.19) / 0.81))
       const p = robotIntensity * 2
       let r, g, b
-
       if (p < 1) {
-        const t = p
-        r = 2 + (10 - 2) * t
-        g = 19 + (31 - 19) * t
-        b = 15 + (21 - 15) * t
+        r = 2 + 8 * p; g = 19 + 12 * p; b = 15 + 6 * p
       } else {
-        const t = p - 1
-        r = 10 + (13 - 10) * t
-        g = 31 + (35 - 31) * t
-        b = 21 + (24 - 21) * t
+        const t = p - 1; r = 10 + 3 * t; g = 31 + 4 * t; b = 21 + 3 * t
       }
-
       if (containerRef.current) {
         containerRef.current.style.backgroundColor = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`
       }
 
-      // Hardware-accelerated DOM manipulation for Text Layouts
-      // Only show texts when container is in view
+      // Text animations
       if (textsContainerRef.current) {
         textsContainerRef.current.style.opacity = progress > 0.2 ? Math.min(1, (progress - 0.2) / 0.05).toString() : "0"
       }
-
       if (text1Ref.current) {
-        const text1Prog = progress < 0.1 ? 0 : progress < 0.25 ? (progress - 0.1) / 0.15 : progress < 0.48 ? 1 : 1 - (progress - 0.48) / 0.07
-        const text1Transform = progress < 0.1 ? (text1Prog * 80 - 80) : progress < 0.25 ? (text1Prog * 80 - 80) : 0
-        text1Ref.current.style.opacity = text1Prog.toString()
-        text1Ref.current.style.transform = `translateY(${text1Transform}px)`
-        text1Ref.current.style.pointerEvents = text1Prog > 0.05 ? 'auto' : 'none'
+        const p1 = progress < 0.1 ? 0 : progress < 0.25 ? (progress - 0.1) / 0.15 : progress < 0.48 ? 1 : 1 - (progress - 0.48) / 0.07
+        text1Ref.current.style.opacity = p1.toString()
+        text1Ref.current.style.transform = `translateY(${p1 < 1 ? (p1 * 80 - 80) : 0}px)`
       }
-
       if (text2Ref.current) {
-        const text2Prog = progress < 0.5 ? 0 : progress < 0.65 ? (progress - 0.5) / 0.15 : progress < 0.78 ? 1 : 1 - (progress - 0.78) / 0.07
-        const text2Transform = progress < 0.5 ? (text2Prog * 80 - 80) : progress < 0.65 ? (text2Prog * 80 - 80) : 0
-        text2Ref.current.style.opacity = text2Prog.toString()
-        text2Ref.current.style.transform = `translateY(${text2Transform}px)`
-        text2Ref.current.style.pointerEvents = text2Prog > 0.05 ? 'auto' : 'none'
+        const p2 = progress < 0.5 ? 0 : progress < 0.65 ? (progress - 0.5) / 0.15 : progress < 0.78 ? 1 : 1 - (progress - 0.78) / 0.07
+        text2Ref.current.style.opacity = p2.toString()
+        text2Ref.current.style.transform = `translateY(${p2 < 1 ? (p2 * 80 - 80) : 0}px)`
       }
-
       if (text3Ref.current) {
-        const text3Prog = progress < 0.85 ? 0 : progress < 0.95 ? (progress - 0.85) / 0.1 : 1
-        const text3Transform = progress < 0.85 ? (text3Prog * 80 - 80) : 0
-        text3Ref.current.style.opacity = text3Prog.toString()
-        text3Ref.current.style.transform = `translateY(${text3Transform}px)`
-        text3Ref.current.style.pointerEvents = text3Prog > 0.05 ? 'auto' : 'none'
+        const p3 = progress < 0.85 ? 0 : progress < 0.95 ? (progress - 0.85) / 0.1 : 1
+        text3Ref.current.style.opacity = p3.toString()
+        text3Ref.current.style.transform = `translateY(${p3 < 1 ? (p3 * 80 - 80) : 0}px)`
       }
-
-      // Debug log - removed containerInView check since texts now scroll with container
     }
 
-    // Call once initially to set the layout
     handleScroll()
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
@@ -191,46 +194,42 @@ export function RobotScene() {
 
   return (
     <div ref={containerRef} className="relative w-full" style={{ height: '300vh', backgroundColor: 'rgb(2, 19, 15)' }}>
-      {/* Sticky 3D Canvas - stays visible during scroll, releases when container passes */}
-      <div className="sticky top-0 h-screen z-10">
-        <Canvas
-          dpr={1}
-          gl={{
-            antialias: false,
-            powerPreference: 'default',
-            alpha: true
-          }}
-        >
-          <AdaptiveDpr pixelated />
-          <PerspectiveCamera makeDefault position={cameraPosition as any} fov={cameraFov} />
-          <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} target={[0, isMobile ? 0.4 : 0.4, 0]} />
+      {/* 3D Canvas or static fallback */}
+      {lowEnd ? (
+        <StaticFallback />
+      ) : (
+        <div className="sticky top-0 h-screen z-10">
+          <Canvas
+            dpr={1}
+            frameloop={isVisible ? 'always' : 'never'}
+            gl={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
+          >
+            <AdaptiveDpr pixelated />
+            <RenderController visible={isVisible} />
+            <PerspectiveCamera makeDefault position={cameraPosition as any} fov={cameraFov} />
+            <OrbitControls enablePan={false} enableRotate={false} enableZoom={false} target={[0, isMobile ? 0.4 : 0.4, 0]} />
 
-          {/* Background is fully transparent to reveal CSS backgroundColor */}
-          <fog attach="fog" args={['#02130f', 3, 12]} />
+            <fog attach="fog" args={['#02130f', 3, 12]} />
+            <LightController />
+            <LightBloom />
 
-          {/* Logic decoupled controllers running natively on GPU frames */}
-          <LightController />
-          <PostProcessingController />
+            <Float speed={1} rotationIntensity={0} floatIntensity={0.05}>
+              <Suspense fallback={null}>
+                <FloatingRobotBody animation={animationString} />
+              </Suspense>
+            </Float>
+          </Canvas>
+        </div>
+      )}
 
-          <Float speed={1} rotationIntensity={0} floatIntensity={0.05}>
-            <Suspense fallback={null}>
-              <FloatingRobotBody animation={animationString} />
-            </Suspense>
-          </Float>
-        </Canvas>
-      </div>
-
-      {/* Vignette overlay - absolute, scrolls WITH container */}
+      {/* Vignette */}
       <div
         className="absolute inset-0 pointer-events-none z-20"
-        style={{
-          background: 'radial-gradient(circle at 50% 50%, transparent 20%, rgba(2,19,15,0.85) 100%)'
-        }}
+        style={{ background: 'radial-gradient(circle at 50% 50%, transparent 20%, rgba(2,19,15,0.85) 100%)' }}
       />
 
-      {/* Text Container - absolute, scrolls WITH container (NOT fixed to viewport) */}
+      {/* Text overlays */}
       <div ref={textsContainerRef} className="absolute inset-0 z-50 pointer-events-none" style={{ opacity: 0 }}>
-        {/* Text 1 */}
         <div ref={text1Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '-10%' }}>
           <div className="max-w-[90%] md:max-w-md text-right">
             <p className="text-emerald-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// VULNERABILITY_DETECTED</p>
@@ -241,7 +240,6 @@ export function RobotScene() {
           </div>
         </div>
 
-        {/* Text 2 */}
         <div ref={text2Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '35%' }}>
           <div className="max-w-[90%] md:max-w-md text-right">
             <p className="text-emerald-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// PROTECTION_ACTIVATED</p>
@@ -252,7 +250,6 @@ export function RobotScene() {
           </div>
         </div>
 
-        {/* Text 3 */}
         <div ref={text3Ref} className="absolute inset-0 flex items-center justify-end px-6 md:px-20" style={{ top: '60%' }}>
           <div className="max-w-[90%] md:max-w-md text-right">
             <p className="text-red-400/80 font-mono text-[10px] md:text-xs tracking-[0.2em] md:tracking-[0.3em] mb-1 md:mb-4">// COMBAT_STANCE</p>

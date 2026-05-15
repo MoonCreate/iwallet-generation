@@ -24,6 +24,7 @@ import {
   getFactoryAddress,
   chainName,
 } from "#/lib/contracts";
+import { WalletButton } from "#/components/WalletButton";
 
 export const Route = createFileRoute("/connect")({
   component: ConnectPage,
@@ -569,7 +570,7 @@ function ConnectPage() {
       {!isConnected && (
         <div className="island-shell rounded-2xl p-6">
           <p className="mb-2">Connect your wallet to continue.</p>
-          <appkit-button />
+          <WalletButton />
         </div>
       )}
 
@@ -582,7 +583,7 @@ function ConnectPage() {
           <p className="text-sm">
             Switch your wallet to <strong>0G Galileo Testnet</strong>:
           </p>
-          <appkit-network-button />
+          <WalletButton />
         </div>
       )}
 
@@ -592,7 +593,7 @@ function ConnectPage() {
             <label className="block text-sm font-semibold">
               Predicted iWallet address on {chainName(chainId)}
             </label>
-            <code className="block rounded bg-black/10 p-2 text-xs">
+            <code className="block rounded p-2 text-xs">
               {(predicted as string) ?? "—"}
             </code>
             {prefillState === "loading" && (

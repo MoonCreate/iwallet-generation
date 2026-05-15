@@ -249,6 +249,24 @@ pre code {
   font-family: 'Fraunces', Georgia, serif;
 }
 
+input,
+select,
+textarea {
+  background-color: transparent;
+  color: inherit;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-color: var(--line);
+}
+
+.dark code {
+  background: rgba(0, 0, 0, 0.3);
+}
+
 .island-shell {
   border: 1px solid var(--line);
   background: linear-gradient(165deg, var(--surface-strong), var(--surface));
@@ -256,7 +274,7 @@ pre code {
     0 1px 0 var(--inset-glint) inset,
     0 22px 44px rgba(30, 90, 72, 0.1),
     0 6px 18px rgba(23, 58, 64, 0.08);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(12px);
 }
 
 .feature-card {
@@ -344,4 +362,10 @@ a {
     background-color: var(--background);
     color: var(--foreground);
   }
+}
+
+/* AppKit / Reown wallet button theme override */
+:root {
+  --w3m-accent: #10b981;
+  --apkt-accent: #10b981;
 }

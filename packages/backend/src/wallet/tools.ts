@@ -25,6 +25,7 @@ export interface SessionContext {
   iWalletAddress: `0x${string}`;
   chain: Chain;
   rpcUrl: string;
+  zgContext?: string;
 }
 
 export const toolDefinitions = [

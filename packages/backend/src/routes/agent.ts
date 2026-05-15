@@ -154,17 +154,6 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
           try {
             // Inject 0G persistent memory context
             const chatMessages = [...(messages as ChatMessage[])];
-            if (session.zgContext && chatMessages.length <= 2) {
-              chatMessages.unshift({
-                role: "user",
-                content: `[SYSTEM CONTEXT - Previous session history from 0G Storage]\n${session.zgContext}`,
-              });
-              chatMessages.splice(1, 0, {
-                role: "assistant",
-                content:
-                  "I have access to your previous conversation history stored on 0G decentralized storage. How can I help you today?",
-              });
-            }
 
             const generator = runAgentChat(
               chatMessages,
@@ -173,19 +162,27 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
                 iWalletAddress: session.iWalletAddress,
                 chain,
                 rpcUrl,
+                zgContext: session.zgContext ?? undefined,
               },
               apiKey
             );
 
+            let assistantContent = "";
             for await (const event of generator) {
               const data = JSON.stringify(event);
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              if (event.type === "text") assistantContent += event.content;
+              else if (event.type === "tool_result") assistantContent += `\n[${event.toolName}]: ${event.content}\n`;
             }
 
-            // Save conversation to 0G Storage (fire-and-forget)
+            // Save full conversation (including assistant response) to 0G Storage
+            const fullMessages = [
+              ...(messages as ChatMessage[]),
+              ...(assistantContent ? [{ role: "assistant" as const, content: assistantContent }] : []),
+            ];
             uploadConversation(
               session.iWalletAddress,
-              messages as ChatMessage[]
+              fullMessages
             ).catch((e) => console.error("[0G] background upload failed:", e));
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);

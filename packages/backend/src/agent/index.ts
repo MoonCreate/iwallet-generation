@@ -59,8 +59,12 @@ export async function* runAgentChat(
   const model = process.env.LLM_MODEL || "MiniMax-M2.5";
   const client = new OpenAI({ apiKey, baseURL });
 
+  const systemPrompt = ctx.zgContext
+    ? `${SYSTEM_PROMPT}\n\n--- PERSISTENT MEMORY (from 0G Storage) ---\n${ctx.zgContext}`
+    : SYSTEM_PROMPT;
+
   const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     ...messages.map(
       (m) =>
         ({

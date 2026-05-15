@@ -139,17 +139,16 @@ export async function getLatestContext(
   const rows = db
     .query(
       `SELECT root_hash, summary, message_count, created_at FROM zg_history
-       WHERE iwallet_address = ? ORDER BY created_at DESC LIMIT 3`
+       WHERE iwallet_address = ? ORDER BY created_at DESC LIMIT 5`
     )
     .all(iWalletAddress.toLowerCase()) as ZgHistoryRow[];
 
   if (rows.length === 0) return null;
 
-  // Build a summary string for the agent
   const lines = rows.map((r) => {
-    const date = new Date(r.created_at).toISOString();
-    return `- [${date}] ${r.message_count} messages: "${r.summary ?? "..."}"`;
+    const date = new Date(r.created_at).toLocaleString();
+    return `- [${date}] ${r.message_count} msgs — user said: "${r.summary ?? "..."}"`;
   });
 
-  return `Previous conversations for this wallet:\n${lines.join("\n")}`;
+  return `You have persistent memory via 0G Storage. Here are this wallet's recent conversations:\n${lines.join("\n")}\n\nUse this context to provide continuity. If the user references something from a previous session, acknowledge it.`;
 }

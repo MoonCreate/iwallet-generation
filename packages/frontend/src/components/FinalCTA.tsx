@@ -19,7 +19,7 @@ export function FinalCTA() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
-            to="/connect"
+            to="/policy"
             className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors"
           >
             Connect Wallet & Start

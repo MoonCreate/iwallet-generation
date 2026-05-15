@@ -23,7 +23,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link to="/dashboard" className="text-emerald-400/60 hover:text-emerald-400 transition-colors">Dashboard</Link></li>
               <li><Link to="/agent" className="text-emerald-400/60 hover:text-emerald-400 transition-colors">Agent Chat</Link></li>
-              <li><Link to="/connect" className="text-emerald-400/60 hover:text-emerald-400 transition-colors">Connect & Provision</Link></li>
+              <li><Link to="/policy" className="text-emerald-400/60 hover:text-emerald-400 transition-colors">Policy & Sessions</Link></li>
               <li><a href="https://chainscan.0g.ai/address/0x08a7Ea416AF2b8DD4614aa6A314ee7c96F8aA68d" target="_blank" rel="noopener" className="text-emerald-400/60 hover:text-emerald-400 transition-colors">Contract (Mainnet) ↗</a></li>
               <li><a href="https://chainscan-galileo.0g.ai/address/0xCF1f2860BA28aD3c7BCfCc29ab34c2f70D64F4ca" target="_blank" rel="noopener" className="text-emerald-400/60 hover:text-emerald-400 transition-colors">Contract (Testnet) ↗</a></li>
             </ul>

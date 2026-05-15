@@ -10,9 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RobotRouteImport } from './routes/robot'
+import { Route as PolicyRouteImport } from './routes/policy'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CreateRouteImport } from './routes/create'
-import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ConfigureRouteImport } from './routes/configure'
 import { Route as AgentRouteImport } from './routes/agent'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,16 @@ import { Route as IndexRouteImport } from './routes/index'
 const RobotRoute = RobotRouteImport.update({
   id: '/robot',
   path: '/robot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PolicyRoute = PolicyRouteImport.update({
+  id: '/policy',
+  path: '/policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -30,11 +41,6 @@ const DashboardRoute = DashboardRouteImport.update({
 const CreateRoute = CreateRouteImport.update({
   id: '/create',
   path: '/create',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConnectRoute = ConnectRouteImport.update({
-  id: '/connect',
-  path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfigureRoute = ConfigureRouteImport.update({
@@ -57,18 +63,20 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
   '/configure': typeof ConfigureRoute
-  '/connect': typeof ConnectRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
+  '/mcp': typeof McpRoute
+  '/policy': typeof PolicyRoute
   '/robot': typeof RobotRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
   '/configure': typeof ConfigureRoute
-  '/connect': typeof ConnectRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
+  '/mcp': typeof McpRoute
+  '/policy': typeof PolicyRoute
   '/robot': typeof RobotRoute
 }
 export interface FileRoutesById {
@@ -76,9 +84,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agent': typeof AgentRoute
   '/configure': typeof ConfigureRoute
-  '/connect': typeof ConnectRoute
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
+  '/mcp': typeof McpRoute
+  '/policy': typeof PolicyRoute
   '/robot': typeof RobotRoute
 }
 export interface FileRouteTypes {
@@ -87,27 +96,30 @@ export interface FileRouteTypes {
     | '/'
     | '/agent'
     | '/configure'
-    | '/connect'
     | '/create'
     | '/dashboard'
+    | '/mcp'
+    | '/policy'
     | '/robot'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agent'
     | '/configure'
-    | '/connect'
     | '/create'
     | '/dashboard'
+    | '/mcp'
+    | '/policy'
     | '/robot'
   id:
     | '__root__'
     | '/'
     | '/agent'
     | '/configure'
-    | '/connect'
     | '/create'
     | '/dashboard'
+    | '/mcp'
+    | '/policy'
     | '/robot'
   fileRoutesById: FileRoutesById
 }
@@ -115,9 +127,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentRoute: typeof AgentRoute
   ConfigureRoute: typeof ConfigureRoute
-  ConnectRoute: typeof ConnectRoute
   CreateRoute: typeof CreateRoute
   DashboardRoute: typeof DashboardRoute
+  McpRoute: typeof McpRoute
+  PolicyRoute: typeof PolicyRoute
   RobotRoute: typeof RobotRoute
 }
 
@@ -128,6 +141,20 @@ declare module '@tanstack/react-router' {
       path: '/robot'
       fullPath: '/robot'
       preLoaderRoute: typeof RobotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/policy': {
+      id: '/policy'
+      path: '/policy'
+      fullPath: '/policy'
+      preLoaderRoute: typeof PolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -142,13 +169,6 @@ declare module '@tanstack/react-router' {
       path: '/create'
       fullPath: '/create'
       preLoaderRoute: typeof CreateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/connect': {
-      id: '/connect'
-      path: '/connect'
-      fullPath: '/connect'
-      preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configure': {
@@ -179,9 +199,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentRoute: AgentRoute,
   ConfigureRoute: ConfigureRoute,
-  ConnectRoute: ConnectRoute,
   CreateRoute: CreateRoute,
   DashboardRoute: DashboardRoute,
+  McpRoute: McpRoute,
+  PolicyRoute: PolicyRoute,
   RobotRoute: RobotRoute,
 }
 export const routeTree = rootRouteImport

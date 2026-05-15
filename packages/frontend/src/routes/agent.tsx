@@ -272,7 +272,7 @@ function AgentPage() {
         {sessions.length === 0 ? (
           <div className="island-shell rounded-2xl p-6 text-center">
             <p className="text-sm opacity-70 mb-4">No active sessions. Provision one first.</p>
-            <Link to="/connect" className="inline-flex items-center gap-2 rounded-full bg-[var(--lagoon-deep)] px-5 py-2.5 text-sm font-semibold text-white">
+            <Link to="/policy" className="inline-flex items-center gap-2 rounded-full bg-[var(--lagoon-deep)] px-5 py-2.5 text-sm font-semibold text-white">
               <Zap className="h-4 w-4" /> Provision Session
             </Link>
           </div>

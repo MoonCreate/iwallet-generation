@@ -26,7 +26,7 @@ import {
 } from "#/lib/contracts";
 import { WalletButton } from "#/components/WalletButton";
 
-export const Route = createFileRoute("/connect")({
+export const Route = createFileRoute("/policy")({
   component: ConnectPage,
   validateSearch: (
     s: Record<string, unknown>
@@ -124,7 +124,7 @@ function ConnectPage() {
   const { data: walletClient } = useWalletClient();
   const { signMessageAsync } = useSignMessage();
   const { writeContractAsync } = useWriteContract();
-  const search = useSearch({ from: "/connect" });
+  const search = useSearch({ from: "/policy" });
   const isOAuth = !!search.auth_id;
 
   const factory = getFactoryAddress(chainId);

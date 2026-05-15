@@ -183,7 +183,7 @@ function DashboardPage() {
           )}
           <div className="mt-6">
             <Link
-              to="/connect"
+              to="/policy"
               className="inline-flex items-center gap-2 rounded-full bg-[var(--lagoon-deep)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
               style={{ color: "white" }}
             >
@@ -206,7 +206,7 @@ function DashboardPage() {
             )}
           </div>
           <Link
-            to="/connect"
+            to="/policy"
             className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium opacity-80 transition hover:opacity-100"
           >
             + Provision new
@@ -216,7 +216,7 @@ function DashboardPage() {
           <p className="text-sm opacity-70">
             No sessions yet.{" "}
             <Link
-              to="/connect"
+              to="/policy"
               className="underline text-[var(--lagoon-deep)]"
             >
               Provision one

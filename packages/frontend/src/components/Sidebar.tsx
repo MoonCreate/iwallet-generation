@@ -1,11 +1,12 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Bot, Plug } from "lucide-react";
+import { LayoutDashboard, Bot, ShieldCheck, Plug } from "lucide-react";
 import { WalletButton } from "./WalletButton";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/agent", label: "Agent", icon: Bot },
-  { to: "/connect", label: "Connect", icon: Plug },
+  { to: "/policy", label: "Policy", icon: ShieldCheck },
+  { to: "/mcp", label: "MCP", icon: Plug },
 ] as const;
 
 export function Sidebar() {

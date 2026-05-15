@@ -37,12 +37,21 @@ fi
 echo "==> restarting services"
 systemctl restart iwallet-backend iwallet-frontend
 
-sleep 2
-systemctl is-active iwallet-backend iwallet-frontend
-
 echo "==> health check"
-curl -fsS --max-time 10 http://127.0.0.1:3003/health
-echo
+for i in 1 2 3 4 5 6; do
+  sleep 3
+  if curl -fsS --max-time 5 http://127.0.0.1:3003/health; then
+    echo
+    break
+  fi
+  if [ "$i" -eq 6 ]; then
+    echo "ERROR: backend health check failed after 18s"
+    systemctl status iwallet-backend --no-pager
+    exit 1
+  fi
+  echo "  retrying ($i/6)..."
+done
+
 curl -fsS -o /dev/null --max-time 10 -w "frontend SSR: HTTP %{http_code}\n" http://127.0.0.1:3002/
 
 echo "==> deploy complete"

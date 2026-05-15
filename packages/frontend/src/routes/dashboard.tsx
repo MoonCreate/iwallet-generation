@@ -237,6 +237,11 @@ function DashboardPage() {
           </ul>
         )}
       </section>
+
+      {/* 0G Storage — Agent Memory */}
+      {hasCode === true && iWalletAddr && (
+        <ZgHistorySection iWalletAddress={iWalletAddr} />
+      )}
     </main>
   );
 }
@@ -1793,5 +1798,89 @@ function CapBar({
         />
       </div>
     </div>
+  );
+}
+
+// ── 0G Storage History Section ──────────────────────────────────
+interface ZgEntry {
+  id: number;
+  root_hash: string;
+  summary: string | null;
+  message_count: number;
+  created_at: number;
+}
+
+function ZgHistorySection({ iWalletAddress }: { iWalletAddress: string }) {
+  const [entries, setEntries] = useState<ZgEntry[]>([]);
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${getBackendUrl()}/api/agent/history/${iWalletAddress}`)
+      .then((r) => r.json())
+      .then((j) => {
+        setEnabled(j.enabled);
+        setEntries(j.entries ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [iWalletAddress]);
+
+  return (
+    <section className="island-shell rounded-2xl p-6">
+      <div className="mb-4 flex items-center gap-2">
+        <Activity className="h-5 w-5 text-[var(--lagoon-deep)]" />
+        <h2 className="text-lg font-semibold">Agent Memory</h2>
+        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
+          0G Storage
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm opacity-70">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading history…
+        </div>
+      ) : !enabled ? (
+        <p className="text-sm opacity-70">
+          0G Storage not configured. Set <code>ZG_PRIVATE_KEY</code> in
+          backend env to enable persistent agent memory on 0G decentralized
+          storage.
+        </p>
+      ) : entries.length === 0 ? (
+        <p className="text-sm opacity-70">
+          No conversations archived yet. Chat with your agent and
+          conversations will be permanently stored on 0G Storage.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {entries.map((e) => (
+            <li
+              key={e.id}
+              className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+            >
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 opacity-50" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">
+                    {e.message_count} messages
+                  </span>
+                  <span className="opacity-50">·</span>
+                  <span className="opacity-60">
+                    {new Date(e.created_at).toLocaleString()}
+                  </span>
+                </div>
+                {e.summary && (
+                  <p className="mt-0.5 truncate opacity-70">{e.summary}</p>
+                )}
+                <code className="mt-1 block truncate font-mono text-[10px] opacity-40">
+                  {e.root_hash}
+                </code>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

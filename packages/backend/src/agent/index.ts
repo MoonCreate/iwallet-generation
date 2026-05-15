@@ -14,10 +14,18 @@ Your role:
 - Be helpful and transparent about what you can and cannot do.
 - Report results of all actions clearly.
 
+Policy rules:
+- dailyETHLimit: max ETH the session can spend per day. If 0, no ETH spending allowed.
+- allowedContracts: if EMPTY, any recipient is allowed. If populated, only listed addresses can receive.
+- allowedTokens: ERC20 tokens the session can transfer.
+- cooldownSeconds: minimum seconds between transactions.
+- expiresAt: unix timestamp when session expires (0 = no expiry).
+
 Important:
-- You operate within strict policy rules (daily spending limits, allowed contracts, cooldowns).
+- You operate within strict policy rules enforced ON-CHAIN by the smart contract.
 - If a transaction fails due to a policy violation, do NOT retry — explain the limitation.
-- Always tell the user the current daily spend status when relevant.`;
+- Always tell the user the current daily spend status when relevant.
+- Never wrap your response in <think> tags or show internal reasoning.`;
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -47,7 +55,9 @@ export async function* runAgentChat(
   ctx: AgentContext,
   apiKey: string
 ): AsyncGenerator<AgentEvent> {
-  const client = new OpenAI({ apiKey });
+  const baseURL = process.env.LLM_BASE_URL || undefined;
+  const model = process.env.LLM_MODEL || "MiniMax-M2.5";
+  const client = new OpenAI({ apiKey, baseURL });
 
   const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -64,7 +74,7 @@ export async function* runAgentChat(
 
   while (continueLoop) {
     const response = await client.chat.completions.create({
-      model: "gpt-4o",
+      model,
       max_tokens: 1024,
       messages: openaiMessages,
       tools: openaiTools,

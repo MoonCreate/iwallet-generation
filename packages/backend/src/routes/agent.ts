@@ -4,11 +4,20 @@ import { privateKeyToAccount } from "viem/accounts";
 import { runAgentChat, type ChatMessage } from "../agent/index.ts";
 import { getEvents, startIndexer } from "../indexer/index.ts";
 import { defaultChainId, pickChain } from "@iwallet/chains";
+import {
+  uploadConversation,
+  getHistory,
+  getLatestContext,
+  downloadConversation,
+  isZgEnabled,
+} from "../store/zg-storage.ts";
+import { lookupSession } from "../store/sessions.ts";
 
 interface AgentSession {
   privateKey: `0x${string}`;
   iWalletAddress: `0x${string}`;
   chainId: number;
+  zgContext?: string | null;
 }
 
 const sessions = new Map<string, AgentSession>();
@@ -61,6 +70,7 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
         privateKey,
         iWalletAddress: iWalletAddress as `0x${string}`,
         chainId: resolvedChainId,
+        zgContext: await getLatestContext(iWalletAddress),
       });
 
       startIndexer(iWalletAddress as `0x${string}`, chain, rpcUrl);
@@ -82,6 +92,44 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
   )
 
   .post(
+    "/session/bearer",
+    async ({ body, set }) => {
+      const { bearerToken, iWalletAddress, chainId } = body;
+      const sess = lookupSession(bearerToken);
+      if (!sess) {
+        set.status = 401;
+        return { error: "Invalid bearer token" };
+      }
+      const resolvedChainId = chainId ?? sess.chainId;
+      const chain = pickChain(resolvedChainId);
+      const rpcUrl = chain.rpcUrls.default.http[0];
+      const sessionId = crypto.randomUUID();
+
+      sessions.set(sessionId, {
+        privateKey: sess.privateKey as `0x${string}`,
+        iWalletAddress: sess.iWalletAddress as `0x${string}`,
+        chainId: resolvedChainId,
+        zgContext: await getLatestContext(sess.iWalletAddress),
+      });
+
+      startIndexer(sess.iWalletAddress as `0x${string}`, chain, rpcUrl);
+
+      return {
+        sessionId,
+        sessionAddress: sess.sessionAddress,
+        chainId: resolvedChainId,
+      };
+    },
+    {
+      body: t.Object({
+        bearerToken: t.String(),
+        iWalletAddress: t.Optional(t.String()),
+        chainId: t.Optional(t.Number()),
+      }),
+    }
+  )
+
+  .post(
     "/chat",
     async ({ body, set }) => {
       const { sessionId, messages } = body;
@@ -92,10 +140,10 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
         return { error: "Invalid session" };
       }
 
-      const apiKey = process.env.OPENAI_API_KEY;
+      const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
       if (!apiKey) {
         set.status = 500;
-        return { error: "OPENAI_API_KEY not configured" };
+        return { error: "LLM_API_KEY not configured" };
       }
 
       const chain = pickChain(session.chainId);
@@ -104,8 +152,22 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
         async start(controller) {
           const encoder = new TextEncoder();
           try {
+            // Inject 0G persistent memory context
+            const chatMessages = [...(messages as ChatMessage[])];
+            if (session.zgContext && chatMessages.length <= 2) {
+              chatMessages.unshift({
+                role: "user",
+                content: `[SYSTEM CONTEXT - Previous session history from 0G Storage]\n${session.zgContext}`,
+              });
+              chatMessages.splice(1, 0, {
+                role: "assistant",
+                content:
+                  "I have access to your previous conversation history stored on 0G decentralized storage. How can I help you today?",
+              });
+            }
+
             const generator = runAgentChat(
-              messages as ChatMessage[],
+              chatMessages,
               {
                 privateKey: session.privateKey,
                 iWalletAddress: session.iWalletAddress,
@@ -119,6 +181,12 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
               const data = JSON.stringify(event);
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
             }
+
+            // Save conversation to 0G Storage (fire-and-forget)
+            uploadConversation(
+              session.iWalletAddress,
+              messages as ChatMessage[]
+            ).catch((e) => console.error("[0G] background upload failed:", e));
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             controller.enqueue(
@@ -158,4 +226,20 @@ export const agentRoutes = new Elysia({ prefix: "/api/agent" })
   .delete("/session/:sessionId", ({ params }) => {
     sessions.delete(params.sessionId);
     return { ok: true };
+  })
+
+  .get("/history/:walletAddress", ({ params }) => {
+    return {
+      enabled: isZgEnabled(),
+      entries: getHistory(params.walletAddress),
+    };
+  })
+
+  .get("/history/:walletAddress/:rootHash", async ({ params, set }) => {
+    const messages = await downloadConversation(params.rootHash);
+    if (!messages) {
+      set.status = 404;
+      return { error: "Not found or 0G Storage unavailable" };
+    }
+    return { messages };
   });

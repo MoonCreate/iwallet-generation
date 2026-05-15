@@ -46,7 +46,7 @@ export const toolDefinitions = [
   {
     name: "sendETH",
     description:
-      "Send native ETH from the iWallet through execute(). Recipient must be in allowedContracts.",
+      "Send native ETH from the iWallet through execute(). If allowedContracts is empty, any recipient is allowed. Only the daily ETH cap applies.",
     input_schema: {
       type: "object" as const,
       properties: {

@@ -138,6 +138,7 @@ RPC_URL=http://127.0.0.1:8545
 CORS_ORIGIN=http://localhost:3000
 PORT=3001
 OPENAI_API_KEY=sk-...          # Required for AI agent
+ZG_PRIVATE_KEY=0x...           # Optional: enables 0G Storage persistent memory
 ```
 
 ### Frontend (`packages/frontend/.env.local`)

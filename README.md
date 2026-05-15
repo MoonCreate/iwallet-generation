@@ -1,8 +1,31 @@
 # iWallet
 
-AI-Native Smart Wallet with On-Chain Policy Rules for the 0G Blockchain.
+AI-Native Smart Wallet with On-Chain Policy Rules — built on the **0G Blockchain**.
 
-iWallet creates deterministic sub-wallets derived from your master wallet, each controlled by an AI agent. On-chain policy rules (daily spend limits, contract whitelists, cooldowns) act as guardrails — even a misbehaving agent cannot exceed its boundaries.
+iWallet creates deterministic sub-wallets derived from your master wallet, each controlled by an AI agent. On-chain policy rules (daily spend limits, contract whitelists, cooldowns) act as guardrails — even a misbehaving agent cannot exceed its boundaries. Agent conversations are permanently stored on **0G decentralized storage**.
+
+## Live Demo
+
+- **Frontend:** [https://wallet.goon4.site](https://wallet.goon4.site)
+- **Backend/MCP:** [https://be-wallet.goon4.site](https://be-wallet.goon4.site)
+- **Contract (Mainnet):** [0x08a7Ea416AF2b8DD4614aa6A314ee7c96F8aA68d](https://chainscan.0g.ai/address/0x08a7Ea416AF2b8DD4614aa6A314ee7c96F8aA68d)
+- **Contract (Testnet):** [0xCF1f2860BA28aD3c7BCfCc29ab34c2f70D64F4ca](https://chainscan-galileo.0g.ai/address/0xCF1f2860BA28aD3c7BCfCc29ab34c2f70D64F4ca)
+
+## Key Features
+
+- **On-Chain Policy Enforcement** — daily limits, allowed contracts, cooldowns enforced by smart contracts
+- **0G Storage Integration** — agent conversations permanently archived on decentralized storage
+- **AI Agent with Tool Calling** — check balances, send ETH, read policy via LLM
+- **MCP Protocol** — any MCP-compatible client (Claude, Cursor, VS Code) can control the wallet
+- **Deterministic Sub-Wallets** — derived from master wallet signature, no new seed phrases
+
+## 0G Ecosystem Integration
+
+| 0G Service | Usage in iWallet |
+|---|---|
+| **0G Chain** | Smart contracts deployed on Mainnet + Testnet |
+| **0G Storage** | Persistent agent memory (conversation archival via Log layer) |
+| **MCP over 0G** | Decentralized AI agent tool execution |
 
 ## Project Structure
 
@@ -10,171 +33,103 @@ iWallet creates deterministic sub-wallets derived from your master wallet, each 
 iwallet/
 ├── packages/
 │   ├── contract/       # Solidity smart contracts (Hardhat v3)
-│   ├── backend/        # Elysia.js API server + AI agent
+│   ├── backend/        # Elysia.js API + AI agent + 0G Storage
 │   ├── frontend/       # React + TanStack Start + Tailwind
-│   └── chains/         # Shared chain definitions & ABIs
-├── docs/               # Implementation plans
+│   ├── chains/         # Shared chain definitions & ABIs
+│   └── tokens/         # Token registry
+├── scripts/            # Deploy & E2E scripts
 └── package.json        # Bun workspace root
 ```
 
-## Prerequisites
+## Quick Start
+
+### Prerequisites
 
 - [Bun](https://bun.sh) v1.2+
 - [Node.js](https://nodejs.org) v22 LTS (required by Hardhat)
-- [MetaMask](https://metamask.io) or any EVM wallet browser extension
+- MetaMask or any EVM wallet
 
-## Quick Start (Local Development)
-
-### 1. Install dependencies
+### Install & Run
 
 ```bash
+# Install all dependencies
 bun install
-```
 
-### 2. Start the local Hardhat node
-
-Open a terminal and run:
-
-```bash
-cd packages/contract
-bunx hardhat node
-```
-
-This starts a local EVM node at `http://127.0.0.1:8545` with 20 pre-funded accounts (10,000 ETH each).
-
-Keep this terminal running.
-
-### 3. Deploy contracts
-
-Open a **second terminal**:
-
-```bash
-cd packages/contract
-bunx hardhat run scripts/deploy-local.ts
-```
-
-This will:
-- Deploy the PolicyRegistry implementation contract
-- Deploy a UUPS proxy pointing to it
-- Write addresses to `deployments.local.json`
-- Auto-update `packages/frontend/.env.local` with `VITE_REGISTRY_ADDRESS`
-
-You should see output like:
-```
-=== Deployment Complete ===
-Registry (proxy): 0xe7f1725e7734ce288f8367e1bb143e90bb3f0512
-```
-
-### 4. Fund your wallet (optional)
-
-If you're using MetaMask with a custom account, fund it from a Hardhat account:
-
-```bash
-cd packages/contract
-TARGET=0xYourAddress AMOUNT=100 bunx hardhat run scripts/fund.ts
-```
-
-### 5. Start the backend
-
-Open a **third terminal**:
-
-```bash
+# Start backend (port 3001)
 cd packages/backend
 bun run dev
-```
 
-The Elysia server starts at `http://localhost:3001`.
-
-### 6. Start the frontend
-
-Open a **fourth terminal**:
-
-```bash
+# Start frontend (port 3000)
 cd packages/frontend
 bun run dev
 ```
 
-The frontend starts at `http://localhost:3000`.
+### Wallet Setup
 
-## Wallet Setup (MetaMask)
-
-1. Open MetaMask and add a custom network:
-   - **Network Name:** Hardhat Local
-   - **RPC URL:** `http://127.0.0.1:8545`
-   - **Chain ID:** `31337`
-   - **Currency Symbol:** ETH
-
-2. Import a Hardhat test account using one of these private keys:
-   ```
-   Account #0: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-   Account #1: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-   ```
-
-3. Connect your wallet on the iWallet site at `http://localhost:3000`
-
-## Usage Flow
-
-1. **Create** — Go to `/create`, click "Create iWallet #0". Sign the message in MetaMask. This derives a deterministic sub-wallet address.
-
-2. **Configure** — Click "Configure Policy" to set rules:
-   - Daily ETH spend limit
-   - Allowed contracts whitelist
-   - Cooldown between transactions
-   - Agent expiry date
-
-3. **Activate** — Click "Deploy PolicyProxy & Activate". This deploys a proxy contract that enforces your policy on-chain.
-
-4. **Fund** — Send some ETH to the proxy address so the agent can operate.
-
-5. **Agent Demo** — Go to `/agent`, enter the proxy address, start a session. Chat with the AI agent — it can check balances, send ETH, and view policy. Watch it get blocked when it hits a policy limit.
+1. Add **0G Galileo Testnet** to MetaMask:
+   - RPC: `https://evmrpc-testnet.0g.ai`
+   - Chain ID: `16602`
+   - Symbol: `0G`
+2. Get testnet tokens: [faucet.0g.ai](https://faucet.0g.ai)
+3. Connect wallet on the app
 
 ## Environment Variables
 
 ### Backend (`packages/backend/.env.local`)
 
 ```env
-USE_LOCALHOST=true
-RPC_URL=http://127.0.0.1:8545
-CORS_ORIGIN=http://localhost:3000
 PORT=3001
-OPENAI_API_KEY=sk-...          # Required for AI agent
-ZG_PRIVATE_KEY=0x...           # Optional: enables 0G Storage persistent memory
+CORS_ORIGIN=http://localhost:3000
+
+# LLM (MiniMax or any OpenAI-compatible)
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://api.minimax.io/v1
+LLM_MODEL=MiniMax-M2.7
+
+# 0G Storage (enables persistent agent memory)
+ZG_PRIVATE_KEY=0x...
+ZG_RPC=https://evmrpc-testnet.0g.ai
+ZG_INDEXER=https://indexer-storage-testnet-turbo.0g.ai
 ```
 
 ### Frontend (`packages/frontend/.env.local`)
 
 ```env
-VITE_API_URL=http://localhost:3001
-VITE_REGISTRY_ADDRESS=0x...    # Auto-set by deploy script
+VITE_BACKEND_URL=http://localhost:3001
 VITE_REOWN_PROJECT_ID=...      # Optional, for WalletConnect
 ```
+
+## Usage Flow
+
+1. **Connect** — Connect your wallet on the landing page
+2. **Policy** — Go to `/policy`, configure rules (daily limit, allowed contracts, cooldown, expiry)
+3. **Fund** — Send 0G to your iWallet address + session key for gas
+4. **Agent** — Go to `/agent`, start a chat session, interact with the AI agent
+5. **MCP** — Go to `/mcp` for instructions to connect Claude, Cursor, or any MCP client
 
 ## Smart Contracts
 
 | Contract | Description |
 |---|---|
-| `PolicyBase.sol` | Shared policy enforcement logic |
-| `PolicyWallet.sol` | EIP-7702 delegation target |
-| `PolicyProxy.sol` | Fallback proxy (agent calls `execute()`) |
-| `PolicyRegistry.sol` | UUPS-upgradeable factory + registry |
-
-### Run tests
+| `iWallet.sol` | Agent-bounded smart wallet with per-session policy enforcement |
+| `iWalletFactory.sol` | UUPS-upgradeable factory + beacon proxy deployer |
 
 ```bash
-cd packages/contract
-bunx hardhat test
-```
+# Compile
+cd packages/contract && bunx hardhat compile
 
-### Compile contracts
-
-```bash
-cd packages/contract
-bunx hardhat compile
+# Test
+cd packages/contract && bunx hardhat test
 ```
 
 ## Tech Stack
 
-- **Contracts:** Solidity 0.8.28, Hardhat v3, OpenZeppelin (UUPS upgradeable)
-- **Backend:** Bun, Elysia.js, OpenAI GPT-4o, viem
-- **Frontend:** React 19, TanStack Start, Tailwind v4, shadcn/ui, wagmi v3, Reown AppKit
-- **Chains:** viem chain definitions for 0G Mainnet, 0G Testnet, Hardhat Local
+- **Contracts:** Solidity 0.8.28, Hardhat v3, OpenZeppelin (UUPS + Beacon upgradeable)
+- **Backend:** Bun, Elysia.js, LLM (MiniMax or any OpenAI-compatible), viem, 0G Storage SDK
+- **Frontend:** React 19, TanStack Start, Tailwind v4, wagmi v3, Reown AppKit, Three.js
+- **Protocol:** MCP (Model Context Protocol) for AI agent interoperability
+- **Storage:** 0G Storage (Log layer for immutable conversation archival)
+
+## License
+
+MIT

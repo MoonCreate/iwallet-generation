@@ -198,7 +198,8 @@ export function RobotScene() {
       {lowEnd ? (
         <StaticFallback />
       ) : (
-        <div className="sticky top-0 h-screen z-10">
+        <div className="sticky top-0 h-screen z-10 relative">
+          <div className="absolute inset-0 z-10" style={{ touchAction: 'pan-y' }} />
           <Canvas
             dpr={1}
             frameloop={isVisible ? 'always' : 'never'}

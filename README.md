@@ -19,13 +19,68 @@ iWallet creates deterministic sub-wallets derived from your master wallet, each 
 - **MCP Protocol** — any MCP-compatible client (Claude, Cursor, VS Code) can control the wallet
 - **Deterministic Sub-Wallets** — derived from master wallet signature, no new seed phrases
 
-## 0G Ecosystem Integration
+## System Architecture
 
-| 0G Service | Usage in iWallet |
-|---|---|
-| **0G Chain** | Smart contracts deployed on Mainnet + Testnet |
-| **0G Storage** | Persistent agent memory (conversation archival via Log layer) |
-| **MCP over 0G** | Decentralized AI agent tool execution |
+```mermaid
+flowchart TD
+    User["👤 User / Master EOA"]
+    FE["Frontend\nReact + TanStack Start"]
+    BE["Backend\nElysia.js + AI Agent"]
+    LLM["LLM\nMiniMax / OpenAI-compatible"]
+    MCP["MCP Clients\nClaude / Cursor / VS Code"]
+
+    subgraph 0G_Chain["0G Chain (Mainnet / Testnet)"]
+        Factory["iWalletFactory\nBeacon Proxy deployer"]
+        Wallet["iWallet\nPolicy-enforced smart wallet"]
+    end
+
+    subgraph 0G_Storage["0G Storage (Log Layer)"]
+        Store["Conversation Archive\n@0gfoundation/0g-ts-sdk"]
+    end
+
+    User -->|"connect wallet"| FE
+    FE -->|"deploy / read policy"| Factory
+    Factory -->|"creates"| Wallet
+    FE -->|"chat messages"| BE
+    BE -->|"tool calls"| LLM
+    LLM -->|"send ETH / check balance"| BE
+    BE -->|"execute() via session key"| Wallet
+    Wallet -->|"enforce policy\n(limit / whitelist / cooldown)"| Wallet
+    BE -->|"upload conversation\nafter session ends"| Store
+    BE -->|"download context\non session start"| Store
+    MCP -->|"MCP tools\n(get_balance, send_eth, get_policy)"| BE
+```
+
+### Flow Description
+
+1. **User connects** their master EOA wallet via the frontend
+2. **iWalletFactory** deploys a deterministic `iWallet` contract for the user on 0G Chain
+3. **User sets policy** (daily ETH limit, contract whitelist, cooldown, expiry) stored on-chain in `iWallet`
+4. **AI agent** receives chat messages, calls LLM with tool definitions, and executes tools (send ETH, check balance, read policy)
+5. **Every agent transaction** goes through `iWallet.execute()` — the contract enforces policy rules atomically before forwarding the call. Violations revert on-chain.
+6. **After each session**, the backend uploads the full conversation to **0G Storage** via `@0gfoundation/0g-ts-sdk`, storing the Merkle root hash in a local index
+7. **On next session start**, the backend fetches the latest conversation context from 0G Storage and injects it into the agent's system prompt as persistent memory
+
+## 0G Component Usage
+
+### 0G Chain
+
+**SDK/API:** Direct EVM RPC via `viem` + Hardhat deployment  
+**Contracts deployed:**
+- `iWalletFactory` — UUPS-upgradeable factory using OpenZeppelin Beacon Proxy pattern
+- `iWallet` — per-user smart wallet with per-session policy enforcement
+
+**Problem it solves:** Off-chain guardrails (rate limiters, server-side checks) can be bypassed by prompt injection or a compromised backend. By enforcing policy rules inside `iWallet.execute()` on 0G Chain, the constraints are cryptographically guaranteed — no AI agent, no matter how compromised, can exceed its daily spend limit or interact with non-whitelisted contracts.
+
+### 0G Storage (Log Layer)
+
+**SDK:** `@0gfoundation/0g-ts-sdk` — `Indexer` + `MemData`  
+**Endpoints:**
+- Upload: `Indexer.upload(memData, rpc, signer)`
+- Download: `Indexer.download(rootHash, path)`
+- Indexer: `https://indexer-storage-turbo.0g.ai` (mainnet) / `https://indexer-storage-testnet-turbo.0g.ai` (testnet)
+
+**Problem it solves:** AI agents are stateless by default — every session starts from zero with no memory of past interactions. By archiving conversation history to 0G Storage after each session and loading it back on the next, iWallet gives agents **permanent, decentralized memory** without relying on any centralized database.
 
 ## Project Structure
 
@@ -72,6 +127,35 @@ bun run dev
    - Symbol: `0G`
 2. Get testnet tokens: [faucet.0g.ai](https://faucet.0g.ai)
 3. Connect wallet on the app
+
+## Contract Deployment
+
+### Deploy to Testnet (0G Galileo)
+
+```bash
+cd packages/contract
+
+# 1. Copy env and set your deployer private key
+cp .env.example .env
+# Edit .env: set DEPLOYER_PRIVATE_KEY=0x...
+
+# 2. Compile
+bunx hardhat compile
+
+# 3. Deploy factory + implementation
+bunx hardhat run scripts/deploy.ts --network galileo
+
+# 4. Run tests
+bunx hardhat test
+```
+
+### Deploy to Mainnet (0G Newton)
+
+```bash
+bunx hardhat run scripts/deploy.ts --network mainnet
+```
+
+Deployed addresses are saved to `deployments.testnet.json` / `deployments.mainnet.json` at the repo root.
 
 ## Environment Variables
 

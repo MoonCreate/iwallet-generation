@@ -510,6 +510,11 @@ function ConnectPage() {
         sessionAddress: prov.sessionAddress,
         bearerToken: prov.bearerToken,
       });
+      // Cache bearer so agent page can reuse it
+      localStorage.setItem(
+        `iwallet-bearer-${iWalletAddress.toLowerCase()}`,
+        prov.bearerToken
+      );
       setStep("done");
 
       if (isOAuth && search.auth_id) {

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RobotRouteImport } from './routes/robot'
 import { Route as PolicyRouteImport } from './routes/policy'
+import { Route as PitchRouteImport } from './routes/pitch'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CreateRouteImport } from './routes/create'
@@ -26,6 +27,11 @@ const RobotRoute = RobotRouteImport.update({
 const PolicyRoute = PolicyRouteImport.update({
   id: '/policy',
   path: '/policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PitchRoute = PitchRouteImport.update({
+  id: '/pitch',
+  path: '/pitch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
+  '/pitch': typeof PitchRoute
   '/policy': typeof PolicyRoute
   '/robot': typeof RobotRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
+  '/pitch': typeof PitchRoute
   '/policy': typeof PolicyRoute
   '/robot': typeof RobotRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
+  '/pitch': typeof PitchRoute
   '/policy': typeof PolicyRoute
   '/robot': typeof RobotRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/create'
     | '/dashboard'
     | '/mcp'
+    | '/pitch'
     | '/policy'
     | '/robot'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/create'
     | '/dashboard'
     | '/mcp'
+    | '/pitch'
     | '/policy'
     | '/robot'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/create'
     | '/dashboard'
     | '/mcp'
+    | '/pitch'
     | '/policy'
     | '/robot'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   CreateRoute: typeof CreateRoute
   DashboardRoute: typeof DashboardRoute
   McpRoute: typeof McpRoute
+  PitchRoute: typeof PitchRoute
   PolicyRoute: typeof PolicyRoute
   RobotRoute: typeof RobotRoute
 }
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/policy'
       fullPath: '/policy'
       preLoaderRoute: typeof PolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pitch': {
+      id: '/pitch'
+      path: '/pitch'
+      fullPath: '/pitch'
+      preLoaderRoute: typeof PitchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreateRoute: CreateRoute,
   DashboardRoute: DashboardRoute,
   McpRoute: McpRoute,
+  PitchRoute: PitchRoute,
   PolicyRoute: PolicyRoute,
   RobotRoute: RobotRoute,
 }
